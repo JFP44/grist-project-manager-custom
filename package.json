@@ -1,0 +1,25 @@
+{
+  "name": "@isaytoo/project-manager",
+  "version": "1.0.0",
+  "description": "Grist Project Manager Widget - Kanban, Table, Gantt views with task management",
+  "homePage": "https://github.com/isaytoo/grist-project-manager-widget",
+  "scripts": {
+    "dev": "python3 -m http.server 8091"
+  },
+  "grist": {
+    "name": "Project Manager",
+    "url": "https://gristlabs.github.io/grist-widget/project-manager/",
+    "widgetId": "@isaytoo/widget-project-manager",
+    "published": true,
+    "accessLevel": "full",
+    "renderAfterReady": true,
+    "description": "Project management widget with Kanban, Table, and Gantt views.",
+    "isGristLabsMaintained": false,
+    "authors": [
+      {
+        "name": "Said Hamadou",
+        "url": "https://github.com/isaytoo"
+      }
+    ]
+  }
+}
