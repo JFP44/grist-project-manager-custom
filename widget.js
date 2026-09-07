@@ -74,7 +74,7 @@ var i18n = {
     fieldGroup: 'Groupe',
     fieldStartDate: 'Date de début',
     fieldDueDate: 'Échéance',
-    fieldCategory: 'Catégorie',
+    fieldServiceDemandeur: 'SERVICE DEMANDEUR',
     fieldEstimatedTime: 'Temps estimé (h)',
     priorityHigh: 'Haute',
     priorityMedium: 'Moyenne',
@@ -416,7 +416,7 @@ var i18n = {
     fieldGroup: 'Group',
     fieldStartDate: 'Start date',
     fieldDueDate: 'Due date',
-    fieldCategory: 'Category',
+    fieldServiceDemandeur: 'SERVICE DEMANDEUR',
     fieldEstimatedTime: 'Estimated time (h)',
     priorityHigh: 'High',
     priorityMedium: 'Medium',
@@ -741,7 +741,7 @@ var projects = [];
 var currentProjectId = null; // null = all projects
 var currentFilterRole = null;
 var currentFilterAssignee = null; // user Name
-var currentFilterCategory = null;
+var currentFilterServiceDemandeur = null;
 var currentFilterTag = null;
 var mineOnly = false; // "Mes projets" : projets créés par moi OU où je suis assigné
 var activeTimers = {}; // taskId -> startTime (for running timers)
@@ -907,7 +907,7 @@ var columnMapping = {
     group: 'Group_Name',
     startDate: 'Start_Date',
     dueDate: 'Due_Date',
-    category: 'Category',
+    serviceDemandeur: 'SERVICE DEMANDEUR',
     tag: 'Tag',
     recurrence: 'Recurrence',
     estimatedHours: 'Estimated_Hours',
@@ -941,6 +941,75 @@ var columnMapping = {
 var isOwner = false;
 var isEditor = false;
 var currentUserEmail = '';
+
+
+// ============================================================
+// SERVICE DEMANDEUR - LISTE
+// ============================================================
+
+var SERVICE_DEMANDEUR_OPTIONS = [
+    "SGA",
+    "SAJ",
+    "SAE",
+    "SAAS",
+    "RH",
+    "Pôle1d44",
+    "PACTE 1D PU",
+    "PACTE 1D PR",
+    "MED PREV",
+    "EFIV442D",
+    "EFIV441D",
+    "DSI – ANT 44",
+    "DSI",
+    "DSDEN49 - DRH",
+    "DSDEN49",
+    "DSDEN 85 / DRH",
+    "DSDEN 72 / PERS. ENS. 1DPUB",
+    "DSDEN 53 / GRHAG",
+    "DSDEN 53 / CPDEPS",
+    "DSDEN 49 – ASH",
+    "DRANE",
+    "DIPE",
+    "DIPATE",
+    "DEC",
+    "DBF2",
+    "DBF1",
+    "DAPSI",
+    "DAPP / DRH49",
+    "DAPP",
+    "DAEP",
+    "CDOEA - SDEI 85"
+];
+
+function buildServiceDemandeurOptions(currentValue) {
+  var html = '<option value="">--</option>';
+
+  SERVICE_DEMANDEUR_OPTIONS.forEach(function(service) {
+    var selected = service === (currentValue || '') ? ' selected' : '';
+
+    html += '<option value="' +
+      sanitize(service) +
+      '"' + selected + '>' +
+      sanitize(service) +
+      '</option>';
+  });
+
+  // Une ancienne valeur est conservée si elle existe
+  // déjà dans Grist mais n'est pas dans la nouvelle liste.
+  if (
+    currentValue &&
+    SERVICE_DEMANDEUR_OPTIONS.indexOf(currentValue) === -1
+  ) {
+    html += '<option value="' +
+      sanitize(currentValue) +
+      '" selected>' +
+      sanitize(currentValue) +
+      '</option>';
+  }
+
+  return html;
+}
+
 
 // =============================================================================
 // UTILS
@@ -1770,7 +1839,7 @@ async function ensureTables() {
           { id: 'Group_Name', type: 'Text' },
           { id: 'Start_Date', type: 'Date' },
           { id: 'Due_Date', type: 'Date' },
-          { id: 'Category', type: 'Text' },
+          { id: 'SERVICE DEMANDEUR', type: 'Text' },
           { id: 'Tag', type: 'Text' },
           { id: 'Recurrence', type: 'Choice', widgetOptions: JSON.stringify({ choices: ['none', 'daily', 'weekly', 'monthly'] }) },
           { id: 'Estimated_Hours', type: 'Numeric' },
@@ -1805,7 +1874,7 @@ async function ensureTables() {
           { id: 'Title', type: 'Text' },
           { id: 'Description', type: 'Text' },
           { id: 'Priority', type: 'Choice', widgetOptions: JSON.stringify({ choices: ['high', 'medium', 'low'] }) },
-          { id: 'Category', type: 'Text' },
+          { id: 'SERVICE DEMANDEUR', type: 'Text' },
           { id: 'Estimated_Hours', type: 'Numeric' },
           { id: 'Group_Name', type: 'Text' },
           { id: 'Tag', type: 'Text' },
@@ -2011,7 +2080,7 @@ async function ensureTables() {
         ['task_group', TASKS_TABLE, 'Group_Name', 'Groupe', false, 'Group_Name'],
         ['task_start_date', TASKS_TABLE, 'Start_Date', 'Date début', false, 'Start_Date'],
         ['task_due_date', TASKS_TABLE, 'Due_Date', 'Échéance', false, 'Due_Date'],
-        ['task_category', TASKS_TABLE, 'Category', 'Catégorie', false, 'Category'],
+        ['task_service_demandeur', TASKS_TABLE, 'SERVICE DEMANDEUR', 'SERVICE DEMANDEUR', false, 'SERVICE DEMANDEUR'],
         ['task_tag', TASKS_TABLE, 'Tag', 'Tag', false, 'Tag'],
         ['task_recurrence', TASKS_TABLE, 'Recurrence', 'Récurrence', false, 'Recurrence'],
         ['task_estimated_hours', TASKS_TABLE, 'Estimated_Hours', 'Heures estimées', false, 'Estimated_Hours'],
@@ -2231,7 +2300,7 @@ async function loadAllData() {
         var groupCol = getColumnName('tasks', 'group');
         var startDateCol = getColumnName('tasks', 'startDate');
         var dueDateCol = getColumnName('tasks', 'dueDate');
-        var categoryCol = getColumnName('tasks', 'category');
+        var serviceDemandeurCol = getColumnName('tasks', 'serviceDemandeur');
         var tagCol = getColumnName('tasks', 'tag');
         var recurrenceCol = getColumnName('tasks', 'recurrence');
         var estimatedHoursCol = getColumnName('tasks', 'estimatedHours');
@@ -2246,7 +2315,7 @@ async function loadAllData() {
         task.Group_Name = taskData[groupCol] ? taskData[groupCol][i] : '';
         task.Start_Date = taskData[startDateCol] ? taskData[startDateCol][i] : null;
         task.Due_Date = taskData[dueDateCol] ? taskData[dueDateCol][i] : null;
-        task.Category = taskData[categoryCol] ? taskData[categoryCol][i] : '';
+        task.SERVICE_DEMANDEUR = taskData[serviceDemandeurCol] ? taskData[serviceDemandeurCol][i] : '';
         task.Tag = taskData[tagCol] ? taskData[tagCol][i] : '';
         task.Recurrence = taskData[recurrenceCol] ? taskData[recurrenceCol][i] : 'none';
         task.Estimated_Hours = taskData[estimatedHoursCol] ? taskData[estimatedHoursCol][i] : 0;
@@ -2316,7 +2385,7 @@ async function loadAllData() {
           Title: tplData.Title ? tplData.Title[i] : '',
           Description: tplData.Description ? tplData.Description[i] : '',
           Priority: tplData.Priority ? tplData.Priority[i] : 'medium',
-          Category: tplData.Category ? tplData.Category[i] : '',
+          SERVICE_DEMANDEUR: tplData['SERVICE DEMANDEUR'] ? tplData['SERVICE DEMANDEUR'][i] : '',
           Estimated_Hours: tplData.Estimated_Hours ? tplData.Estimated_Hours[i] : 0,
           Group_Name: tplData.Group_Name ? tplData.Group_Name[i] : '',
           Tag: tplData.Tag ? tplData.Tag[i] : '',
@@ -2641,11 +2710,11 @@ function renderProjectSelector() {
   html += buildFilterCombo('person', currentLang === 'fr' ? '— Personne —' : '— Person —', personOptions, currentFilterAssignee, filterByAssignee);
 
   // Filtre Catégorie
-  var allCategories = [];
-  tasks.forEach(function(t) { if (t.Category && allCategories.indexOf(t.Category) === -1) allCategories.push(t.Category); });
+  var allServiceDemandeurs = [];
+  tasks.forEach(function(t) { if (t.SERVICE_DEMANDEUR && allServiceDemandeurs.indexOf(t.SERVICE_DEMANDEUR) === -1) allServiceDemandeurs.push(t.SERVICE_DEMANDEUR); });
   allCategories.sort();
   var catOptions = allCategories.map(function(c) { return { value: c, label: c }; });
-  html += buildFilterCombo('category', currentLang === 'fr' ? '— Catégorie —' : '— Category —', catOptions, currentFilterCategory, filterByCategory);
+  html += buildFilterCombo('serviceDemandeur', '— SERVICE DEMANDEUR —', serviceDemandeurOptions, currentFilterServiceDemandeur, filterByServiceDemandeur);
 
   // Filtre Tag
   var tagOptions = tags.map(function(tag) { return { value: tag.Name, label: tag.Name }; });
@@ -2701,7 +2770,7 @@ function renderProjectSelector() {
     html += '<button class="btn-icon" onclick="toggleMyProjects()" title="' + (currentLang === 'fr' ? 'Mes projets : créés par moi ou qui me sont assignés' : 'My projects: created by or assigned to me') + '" style="width:auto;padding:0 12px;font-size:12px;font-weight:600;' + (mineOnly ? 'background:#6366f1;color:#fff;border-color:#6366f1;' : '') + '">👤 ' + (currentLang === 'fr' ? 'Mes projets' : 'My projects') + '</button>';
   }
 
-  if (currentFilterRole || currentFilterAssignee || currentFilterCategory || currentFilterTag || currentProjectId || mineOnly) {
+  if (currentFilterRole || currentFilterAssignee || currentFilterServiceDemandeur || currentFilterTag || currentProjectId || mineOnly) {
     html += '<button class="btn-icon" onclick="resetFilters()" title="' + (currentLang === 'fr' ? 'Réinitialiser les filtres' : 'Reset filters') + '" style="color:#ef4444;">✕</button>';
   }
 
@@ -2716,7 +2785,7 @@ function renderProjectSelector() {
     var appEl = document.querySelector('.app-container') || document.body;
     appEl.insertBefore(banner, appEl.firstChild);
   }
-  if (currentFilterRole || currentFilterAssignee || currentFilterCategory || currentFilterTag || currentProjectId || mineOnly) {
+  if (currentFilterRole || currentFilterAssignee || currentFilterServiceDemandeur || currentFilterTag || currentProjectId || mineOnly) {
     var proj2 = currentProjectId ? projects.find(function(p) { return p.id === currentProjectId; }) : null;
     var c2 = (proj2 && proj2.Color) ? proj2.Color : '#6366f1';
     var bits = [];
@@ -2727,7 +2796,7 @@ function renderProjectSelector() {
       var displayName = u ? (u.Name || u.Email) : currentFilterAssignee;
       bits.push('👤 ' + sanitize(displayName));
     }
-    if (currentFilterCategory) bits.push('📁 ' + sanitize(currentFilterCategory));
+    if (currentFilterServiceDemandeur) bits.push('📁 ' + sanitize(currentFilterServiceDemandeur));
     if (currentFilterTag) bits.push('🏷️ ' + sanitize(currentFilterTag));
     if (proj2) bits.push('🎯 ' + sanitize(proj2.Name));
     banner.innerHTML = (currentLang === 'fr' ? 'Filtres actifs : ' : 'Active filters: ') + '<strong>' + bits.join(' › ') + '</strong> — <a href="#" onclick="resetFilters();return false;" style="color:inherit;text-decoration:underline;">' + (currentLang === 'fr' ? 'Tout effacer' : 'Clear all') + '</a>';
@@ -3033,7 +3102,7 @@ function persistFilters() {
   try {
     localStorage.setItem(filtersStorageKey(), JSON.stringify({
       role: currentFilterRole, assignee: currentFilterAssignee,
-      category: currentFilterCategory, tag: currentFilterTag, mineOnly: mineOnly
+      category: currentFilterServiceDemandeur, tag: currentFilterTag, mineOnly: mineOnly
     }));
   } catch (e) {}
 }
@@ -3049,10 +3118,10 @@ function sanitizeRestoredFilters() {
     if (!known) currentFilterRole = null;
   }
   if (currentFilterAssignee && !findUserByIdent(currentFilterAssignee)) currentFilterAssignee = null;
-  if (currentFilterCategory) {
-    var catKey = String(currentFilterCategory).trim();
-    var catFound = tasks.some(function(t) { return String(t.Category || '').trim() === catKey; });
-    if (!catFound) currentFilterCategory = null;
+  if (currentFilterServiceDemandeur) {
+    var catKey = String(currentFilterServiceDemandeur).trim();
+    var catFound = tasks.some(function(t) { return String(t.SERVICE_DEMANDEUR || '').trim() === catKey; });
+    if (!catFound) currentFilterServiceDemandeur = null;
   }
   if (currentFilterTag) {
     var tagKey = String(currentFilterTag).trim();
@@ -3069,7 +3138,7 @@ function restoreFilters() {
     var s = JSON.parse(localStorage.getItem(filtersStorageKey()) || '{}');
     currentFilterRole = s.role || null;
     currentFilterAssignee = s.assignee || null;
-    currentFilterCategory = s.category || null;
+    currentFilterServiceDemandeur = s.category || null;
     currentFilterTag = s.tag || null;
     mineOnly = !!s.mineOnly;
   } catch (e) {}
@@ -3111,8 +3180,8 @@ function filterByAssignee(name) {
   refreshAllViews();
 }
 
-function filterByCategory(val) {
-  currentFilterCategory = val || null;
+function filterByServiceDemandeur(val) {
+  currentFilterServiceDemandeur = val || null;
   persistFilters();
   renderProjectSelector();
   refreshAllViews();
@@ -3128,7 +3197,7 @@ function filterByTag(val) {
 function resetFilters() {
   currentFilterRole = null;
   currentFilterAssignee = null;
-  currentFilterCategory = null;
+  currentFilterServiceDemandeur = null;
   currentFilterTag = null;
   mineOnly = false;
   currentProjectId = null;
@@ -3159,9 +3228,9 @@ function getFilteredTasks() {
     var identSet = personIdentSet(currentFilterAssignee);
     result = result.filter(function(t) { return assigneeListHas(t.Assignee, identSet); });
   }
-  if (currentFilterCategory) {
-    var catKey = String(currentFilterCategory).trim();
-    result = result.filter(function(t) { return String(t.Category || '').trim() === catKey; });
+  if (currentFilterServiceDemandeur) {
+    var catKey = String(currentFilterServiceDemandeur).trim();
+    result = result.filter(function(t) { return String(t.SERVICE_DEMANDEUR || '').trim() === catKey; });
   }
   if (currentFilterTag) {
     var tagKey = String(currentFilterTag).trim();
@@ -3997,12 +4066,11 @@ function renderTaskCard(task) {
     html += '</div>';
   }
 
-  if ((cd.category && task.Category) || (cd.tags && task.Tag)) {
+  if ((cd.serviceDemandeur && task.SERVICE_DEMANDEUR) || (cd.tags && task.Tag)) {
     html += '<div class="task-card-row" style="gap:6px;flex-wrap:wrap;">';
-    if (cd.category && task.Category) {
-      var catObj = categories.find(function(c) { return c.Name === task.Category; });
-      var catColor = catObj ? catObj.Color : '#6366f1';
-      html += '<span style="font-size:10px;color:' + catColor + ';font-weight:700;">| ' + sanitize(task.Category) + '</span>';
+    if (cd.serviceDemandeur && task.SERVICE_DEMANDEUR) {
+      var catColor = '#6366f1';
+      html += '<span style="font-size:10px;color:' + catColor + ';font-weight:700;">| ' + sanitize(task.SERVICE_DEMANDEUR) + '</span>';
     }
     if (cd.tags && task.Tag) {
       var tagList = task.Tag.split(',').map(function(tg) { return tg.trim(); }).filter(Boolean);
@@ -5372,7 +5440,7 @@ function renderTemplatesView() {
   var filtered = templates.filter(function(tpl) {
     if (filterPriority && tpl.Priority !== filterPriority) return false;
     if (search) {
-      var text = (tpl.Title + ' ' + tpl.Description + ' ' + tpl.Category).toLowerCase();
+      var text = (tpl.Title + ' ' + tpl.Description + ' ' + tpl.SERVICE_DEMANDEUR).toLowerCase();
       if (text.indexOf(search) === -1) return false;
     }
     return true;
@@ -5387,7 +5455,7 @@ function renderTemplatesView() {
     html += '<div class="template-card-info">';
     html += '<h4>' + sanitize(tpl.Title) + '</h4>';
     html += '<div class="template-meta">';
-    if (tpl.Category) html += '🏷️ ' + sanitize(tpl.Category);
+    if (tpl.SERVICE_DEMANDEUR) html += '🏷️ ' + sanitize(tpl.SERVICE_DEMANDEUR);
     html += ' <span class="priority-dot ' + dotClass + '"></span> ' + priorityLabel(tpl.Priority);
     if (tpl.Estimated_Hours) html += ' ⏱️ ' + tpl.Estimated_Hours + 'h';
     html += ' 📊 ' + (tpl.Usage_Count || 0) + ' ' + (currentLang === 'fr' ? 'utilisations' : 'uses');
@@ -6148,8 +6216,8 @@ function openNewTaskModal(defaultStatus) {
   }
   html += '<div class="detail-field">';
   html += '<span class="detail-field-icon">📁</span>';
-  html += '<span class="detail-field-label">' + t('fieldCategory') + '</span>';
-  html += '<div class="detail-field-value"><select id="task-category">' + newCategoryOptions + '</select></div>';
+  html += '<span class="detail-field-label">' + 'SERVICE DEMANDEUR' + '</span>';
+  html += '<div class="detail-field-value"><select id="task-service-demandeur">' + newCategoryOptions + '</select></div>';
   html += '</div>';
 
   // Tag
@@ -6195,7 +6263,7 @@ async function startNewTask(defaultStatus, dateStr, prefill) {
   setField(record, 'tasks', 'status', defaultStatus || (statuses[0] && statuses[0].key) || 'todo');
   setField(record, 'tasks', 'priority', prefill.priority || 'medium');
   if (prefill.description) setField(record, 'tasks', 'description', prefill.description);
-  if (prefill.category) setField(record, 'tasks', 'category', prefill.category);
+  if (prefill.serviceDemandeur) setField(record, 'tasks', 'serviceDemandeur', prefill.serviceDemandeur);
   if (prefill.group) setField(record, 'tasks', 'group', prefill.group);
   if (prefill.tag) setField(record, 'tasks', 'tag', prefill.tag);
   if (prefill.recurrence && prefill.recurrence !== 'none') setField(record, 'tasks', 'recurrence', prefill.recurrence);
@@ -6351,13 +6419,13 @@ function openEditTaskModal(taskId, preserveAssignees) {
   // Category
   var categoryOptions = '<option value="">--</option>';
   for (var ci = 0; ci < categories.length; ci++) {
-    var catSel = categories[ci].Name === task.Category ? ' selected' : '';
+    var catSel = categories[ci].Name === task.SERVICE_DEMANDEUR ? ' selected' : '';
     categoryOptions += '<option value="' + sanitize(categories[ci].Name) + '"' + catSel + '>' + sanitize(categories[ci].Name) + '</option>';
   }
   html += '<div class="detail-field">';
   html += '<span class="detail-field-icon">📁</span>';
-  html += '<span class="detail-field-label">' + t('fieldCategory') + '</span>';
-  html += '<div class="detail-field-value"><select id="task-category">' + categoryOptions + '</select></div>';
+  html += '<span class="detail-field-label">' + 'SERVICE DEMANDEUR' + '</span>';
+  html += '<div class="detail-field-value"><select id="task-service-demandeur">' + categoryOptions + '</select></div>';
   html += '</div>';
 
   // Tag
@@ -6997,7 +7065,7 @@ async function persistTaskFormFields(taskId) {
   if ((el = document.getElementById('task-group'))) setField(record, 'tasks', 'group', el.value);
   if ((el = document.getElementById('task-start'))) setField(record, 'tasks', 'startDate', toEpoch(el.value));
   if ((el = document.getElementById('task-due'))) setField(record, 'tasks', 'dueDate', toEpoch(el.value));
-  if ((el = document.getElementById('task-category'))) setField(record, 'tasks', 'category', el.value.trim());
+  if ((el = document.getElementById('task-service-demandeur'))) setField(record, 'tasks', 'serviceDemandeur', el.value.trim());
   if ((el = document.getElementById('task-project'))) setField(record, 'tasks', 'projectId', el.value ? parseInt(el.value) : 0);
   if ((el = document.getElementById('task-recurrence'))) setField(record, 'tasks', 'recurrence', el.value);
   if ((el = document.getElementById('task-tag'))) setField(record, 'tasks', 'tag', el.value.trim());
@@ -7705,7 +7773,7 @@ async function generateOccurrences(taskId, period) {
     var startOffset = (task.Start_Date && task.Due_Date) ? (task.Due_Date - task.Start_Date) : 0;
     setField(record, 'tasks', 'startDate', cursor - startOffset);
     setField(record, 'tasks', 'dueDate', cursor);
-    setField(record, 'tasks', 'category', task.Category);
+    setField(record, 'tasks', 'serviceDemandeur', task.SERVICE_DEMANDEUR);
     setField(record, 'tasks', 'tag', task.Tag);
     setField(record, 'tasks', 'recurrence', task.Recurrence);
     setField(record, 'tasks', 'estimatedHours', task.Estimated_Hours);
@@ -7769,7 +7837,7 @@ async function createNextOccurrence(task) {
     setField(record, 'tasks', 'group', task.Group_Name);
     setField(record, 'tasks', 'startDate', newStartDate);
     setField(record, 'tasks', 'dueDate', newDueDate);
-    setField(record, 'tasks', 'category', task.Category);
+    setField(record, 'tasks', 'serviceDemandeur', task.SERVICE_DEMANDEUR);
     setField(record, 'tasks', 'tag', task.Tag);
     setField(record, 'tasks', 'recurrence', task.Recurrence);
     setField(record, 'tasks', 'estimatedHours', task.Estimated_Hours);
@@ -7792,7 +7860,7 @@ function openNewTemplateModal(tplId) {
   var title = editing ? sanitize(tpl.Title || '') : '';
   var desc = editing ? sanitize(tpl.Description || '') : '';
   var priority = editing ? (tpl.Priority || 'medium') : 'medium';
-  var category = editing ? (tpl.Category || '') : '';
+  var serviceDemandeur = editing ? (tpl.SERVICE_DEMANDEUR || '') : '';
   var hours = editing ? (tpl.Estimated_Hours || '') : '';
   var tplGroup = editing ? (tpl.Group_Name || '') : '';
   var tplTag = editing ? (tpl.Tag || '') : '';
@@ -7810,12 +7878,12 @@ function openNewTemplateModal(tplId) {
   html += '<option value="high"' + (priority === 'high' ? ' selected' : '') + '>' + t('priorityHigh') + '</option>';
   html += '<option value="low"' + (priority === 'low' ? ' selected' : '') + '>' + t('priorityLow') + '</option>';
   html += '</select></div>';
-  var tplCatOptions = '<option value=""' + (!category ? ' selected' : '') + '>--</option>';
+  var tplServiceDemandeurOptions = buildServiceDemandeurOptions(serviceDemandeur);
   for (var tci = 0; tci < categories.length; tci++) {
     var catName = categories[tci].Name;
-    tplCatOptions += '<option value="' + sanitize(catName) + '"' + (catName === category ? ' selected' : '') + '>' + sanitize(catName) + '</option>';
+    tplServiceDemandeurOptions += '<option value="' + sanitize(catName) + '"' + (catName === category ? ' selected' : '') + '>' + sanitize(catName) + '</option>';
   }
-  html += '<div class="form-group"><label>' + t('fieldCategory') + '</label><select id="tpl-category">' + tplCatOptions + '</select></div>';
+  html += '<div class="form-group"><label>' + 'SERVICE DEMANDEUR' + '</label><select id="tpl-service-demandeur">' + tplServiceDemandeurOptions + '</select></div>';
   html += '</div>';
   html += '<div class="form-group"><label>' + t('fieldEstimatedTime') + '</label><input type="number" id="tpl-hours" step="0.5" min="0" value="' + hours + '" /></div>';
   // Groupe + Tag
@@ -7891,7 +7959,7 @@ async function createTask() {
   setField(record, 'tasks', 'group', document.getElementById('task-group').value);
   setField(record, 'tasks', 'startDate', toEpoch(document.getElementById('task-start').value));
   setField(record, 'tasks', 'dueDate', toEpoch(document.getElementById('task-due').value));
-  setField(record, 'tasks', 'category', document.getElementById('task-category').value.trim());
+  setField(record, 'tasks', 'serviceDemandeur', document.getElementById('task-service-demandeur').value.trim());
   setField(record, 'tasks', 'projectId', projectId);
   setField(record, 'tasks', 'createdAt', Math.floor(Date.now() / 1000));
   // B4 : prolongation auto activée par défaut sur les nouvelles tâches (modifiable ensuite)
@@ -7962,7 +8030,7 @@ async function updateTask(taskId) {
   setField(record, 'tasks', 'group', document.getElementById('task-group').value);
   setField(record, 'tasks', 'startDate', toEpoch(document.getElementById('task-start').value));
   setField(record, 'tasks', 'dueDate', toEpoch(document.getElementById('task-due').value));
-  setField(record, 'tasks', 'category', document.getElementById('task-category').value.trim());
+  setField(record, 'tasks', 'serviceDemandeur', document.getElementById('task-service-demandeur').value.trim());
   setField(record, 'tasks', 'projectId', projectId);
   setField(record, 'tasks', 'recurrence', newRecurrence);
   
@@ -8049,7 +8117,7 @@ async function createTemplate() {
     Title: title,
     Description: document.getElementById('tpl-desc').value.trim(),
     Priority: document.getElementById('tpl-priority').value,
-    Category: document.getElementById('tpl-category').value.trim(),
+    SERVICE_DEMANDEUR: document.getElementById('tpl-service-demandeur').value.trim(),
     Estimated_Hours: parseFloat(document.getElementById('tpl-hours').value) || 0,
     Group_Name: (document.getElementById('tpl-group') || {}).value || '',
     Tag: (document.getElementById('tpl-tag') || {}).value || '',
@@ -8078,7 +8146,7 @@ async function updateTemplate(tplId) {
     Title: title,
     Description: document.getElementById('tpl-desc').value.trim(),
     Priority: document.getElementById('tpl-priority').value,
-    Category: document.getElementById('tpl-category').value.trim(),
+    SERVICE_DEMANDEUR: document.getElementById('tpl-service-demandeur').value.trim(),
     Estimated_Hours: parseFloat(document.getElementById('tpl-hours').value) || 0,
     Group_Name: (document.getElementById('tpl-group') || {}).value || '',
     Tag: (document.getElementById('tpl-tag') || {}).value || '',
@@ -8130,7 +8198,7 @@ async function useTemplate(tplId) {
     title: tpl.Title || '',
     description: tpl.Description || '',
     priority: tpl.Priority || 'medium',
-    category: tpl.Category || '',
+    serviceDemandeur: tpl.SERVICE_DEMANDEUR || '',
     group: tpl.Group_Name || '',
     tag: tpl.Tag || '',
     recurrence: tpl.Recurrence || 'none',
@@ -8280,11 +8348,11 @@ function renderStatsView() {
   var statusChart = document.getElementById('chart-status');
   if (statusChart) statusChart.innerHTML = statusHtml;
 
-  // SERVICE DEMANDEUR chart - basé sur le champ Category
+  // SERVICE DEMANDEUR chart
   var serviceCounts = {};
 
   filteredTasks.forEach(function(t) {
-    var service = String(t.Category || '').trim();
+    var service = String(t.SERVICE_DEMANDEUR || '').trim();
     if (!service) return;
 
     if (service.indexOf(',') !== -1) {
@@ -8330,7 +8398,7 @@ function renderStatsView() {
     serviceHtml = '<div style="text-align:center;color:#94a3b8;width:100%;">Aucune donnée</div>';
   }
 
-  var serviceChart = document.getElementById('chart-category');
+  var serviceChart = document.getElementById('chart-service-demandeur');
   if (serviceChart) serviceChart.innerHTML = serviceHtml;
 
   // Assignee chart
@@ -10071,7 +10139,7 @@ async function saveColumnMapping() {
     
     // Tasks mappings
     var tasksTable = document.getElementById('mapping-tasks-table').value;
-    var taskFields = ['title', 'description', 'status', 'priority', 'assignee', 'group', 'startDate', 'dueDate', 'category', 'tag', 'recurrence', 'estimatedHours', 'createdAt', 'projectId'];
+    var taskFields = ['title', 'description', 'status', 'priority', 'assignee', 'group', 'startDate', 'dueDate', 'serviceDemandeur', 'tag', 'recurrence', 'estimatedHours', 'createdAt', 'projectId'];
     for (var i = 0; i < taskFields.length; i++) {
       var field = taskFields[i];
       var el = document.getElementById('map-task-' + field);
@@ -10587,7 +10655,7 @@ function globalSearch(query) {
   var results = getFilteredTasks().filter(function(t) {
     return (t.Title && t.Title.toLowerCase().indexOf(q) !== -1) ||
            (t.Description && t.Description.toLowerCase().indexOf(q) !== -1) ||
-           (t.Category && t.Category.toLowerCase().indexOf(q) !== -1);
+           (t.SERVICE_DEMANDEUR && t.SERVICE_DEMANDEUR.toLowerCase().indexOf(q) !== -1);
   }).slice(0, 10);
   
   if (results.length === 0) {
@@ -10598,7 +10666,7 @@ function globalSearch(query) {
       var task = results[i];
       html += '<div class="search-result-item" onclick="openEditTaskModal(' + task.id + '); closeSearch();">';
       html += '<div class="search-result-title">' + sanitize(task.Title) + '</div>';
-      html += '<div class="search-result-meta">' + (task.Category || '') + ' • ' + t('status' + task.Status.charAt(0).toUpperCase() + task.Status.slice(1)) + '</div>';
+      html += '<div class="search-result-meta">' + (task.SERVICE_DEMANDEUR || '') + ' • ' + t('status' + task.Status.charAt(0).toUpperCase() + task.Status.slice(1)) + '</div>';
       html += '</div>';
     }
     resultsContainer.innerHTML = html;
@@ -10638,7 +10706,7 @@ function loadDarkModePreference() {
 
 function exportTasks(format) {
   if (format === 'csv') {
-    var csv = 'Titre,Description,Statut,Priorité,Catégorie,Assigné,Date début,Échéance\n';
+    var csv = 'Titre,Description,Statut,Priorité,SERVICE DEMANDEUR,Assigné,Date début,Échéance\n';
     for (var i = 0; i < tasks.length; i++) {
       var t = tasks[i];
       csv += '"' + (t.Title || '').replace(/"/g, '""') + '",';
