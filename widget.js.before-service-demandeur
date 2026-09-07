@@ -74,7 +74,7 @@ var i18n = {
     fieldGroup: 'Groupe',
     fieldStartDate: 'Date de début',
     fieldDueDate: 'Échéance',
-    fieldServiceDemandeur: 'SERVICE DEMANDEUR',
+    fieldCategory: 'Catégorie',
     fieldEstimatedTime: 'Temps estimé (h)',
     priorityHigh: 'Haute',
     priorityMedium: 'Moyenne',
@@ -416,7 +416,7 @@ var i18n = {
     fieldGroup: 'Group',
     fieldStartDate: 'Start date',
     fieldDueDate: 'Due date',
-    fieldServiceDemandeur: 'SERVICE DEMANDEUR',
+    fieldCategory: 'Category',
     fieldEstimatedTime: 'Estimated time (h)',
     priorityHigh: 'High',
     priorityMedium: 'Medium',
@@ -741,7 +741,7 @@ var projects = [];
 var currentProjectId = null; // null = all projects
 var currentFilterRole = null;
 var currentFilterAssignee = null; // user Name
-var currentFilterServiceDemandeur = null;
+var currentFilterCategory = null;
 var currentFilterTag = null;
 var mineOnly = false; // "Mes projets" : projets créés par moi OU où je suis assigné
 var activeTimers = {}; // taskId -> startTime (for running timers)
@@ -878,7 +878,6 @@ var CUSTOM_FIELDS_TABLE = 'PM_CustomFields';
 var CUSTOM_FIELD_VALUES_TABLE = 'PM_CustomFieldValues';
 var CATEGORIES_TABLE = 'PM_Categories';
 var TAGS_TABLE = 'PM_Tags';
-var SERVICES_TABLE = 'PM_Services';
 var PROJECTS_TABLE = 'PM_Projects';
 var CONFIG_TABLE = 'PM_Config';
 var SETTINGS_TABLE = 'PM_Settings';
@@ -908,7 +907,7 @@ var columnMapping = {
     group: 'Group_Name',
     startDate: 'Start_Date',
     dueDate: 'Due_Date',
-    serviceDemandeur: 'SERVICE DEMANDEUR',
+    category: 'Category',
     tag: 'Tag',
     recurrence: 'Recurrence',
     estimatedHours: 'Estimated_Hours',
@@ -926,8 +925,6 @@ var columnMapping = {
     description: 'Description',
     color: 'Color',
     status: 'Status',
-    serviceDemandeur: 'SERVICE DEMANDEUR',
-    referentMetier: 'Référent métier',
     lead: 'Lead'
   },
   categories: {
@@ -944,74 +941,6 @@ var columnMapping = {
 var isOwner = false;
 var isEditor = false;
 var currentUserEmail = '';
-
-
-// ============================================================
-// SERVICE DEMANDEUR - LISTE
-// ============================================================
-
-var PM_SERVICES = [];
-var PM_STATUTS = [];
-var SERVICE_DEMANDEUR_OPTIONS = [
-    "SGA",
-    "SAJ",
-    "SAE",
-    "SAAS",
-    "RH",
-    "Pôle1d44",
-    "PACTE 1D PU",
-    "PACTE 1D PR",
-    "MED PREV",
-    "EFIV442D",
-    "EFIV441D",
-    "DSI – ANT 44",
-    "DSI",
-    "DSDEN49 - DRH",
-    "DSDEN49",
-    "DSDEN 85 / DRH",
-    "DSDEN 72 / PERS. ENS. 1DPUB",
-    "DSDEN 53 / GRHAG",
-    "DSDEN 53 / CPDEPS",
-    "DSDEN 49 – ASH",
-    "DRANE",
-    "DIPE",
-    "DIPATE",
-    "DEC",
-    "DBF2",
-    "DBF1",
-    "DAPSI",
-    "DAPP / DRH49",
-    "DAPP",
-    "DAEP",
-    "CDOEA - SDEI 85"
-];
-
-function buildServiceDemandeurOptions(currentValue) {
-  var html = '<option value="">--</option>';
-  var services = PM_SERVICES;
-
-  services.forEach(function(service) {
-    var selected = service === (currentValue || '') ? ' selected' : '';
-
-    html += '<option value="' +
-      sanitize(service) +
-      '"' + selected + '>' +
-      sanitize(service) +
-      '</option>';
-  });
-
-  // Conserver une ancienne valeur si elle existe dans Grist
-  // mais n'est plus présente dans la liste actuelle.
-  if (currentValue && services.indexOf(currentValue) === -1) {
-    html += '<option value="' +
-      sanitize(currentValue) +
-      '" selected>' +
-      sanitize(currentValue) +
-      '</option>';
-  }
-
-  return html;
-}
 
 // =============================================================================
 // UTILS
@@ -1826,8 +1755,6 @@ async function ensureTables() {
     // when they have been remapped to existing user-owned tables.
     if (existingTables.indexOf(CONFIG_TABLE) !== -1) {
       await loadColumnMapping();
-  // Load project reference tables
-  
     }
 
     // Only auto-create a table when it (a) still has its default PM_* name
@@ -1843,7 +1770,7 @@ async function ensureTables() {
           { id: 'Group_Name', type: 'Text' },
           { id: 'Start_Date', type: 'Date' },
           { id: 'Due_Date', type: 'Date' },
-          { id: 'SERVICE DEMANDEUR', type: 'Text' },
+          { id: 'Category', type: 'Text' },
           { id: 'Tag', type: 'Text' },
           { id: 'Recurrence', type: 'Choice', widgetOptions: JSON.stringify({ choices: ['none', 'daily', 'weekly', 'monthly'] }) },
           { id: 'Estimated_Hours', type: 'Numeric' },
@@ -1878,7 +1805,7 @@ async function ensureTables() {
           { id: 'Title', type: 'Text' },
           { id: 'Description', type: 'Text' },
           { id: 'Priority', type: 'Choice', widgetOptions: JSON.stringify({ choices: ['high', 'medium', 'low'] }) },
-          { id: 'SERVICE DEMANDEUR', type: 'Text' },
+          { id: 'Category', type: 'Text' },
           { id: 'Estimated_Hours', type: 'Numeric' },
           { id: 'Group_Name', type: 'Text' },
           { id: 'Tag', type: 'Text' },
@@ -2012,18 +1939,7 @@ async function ensureTables() {
           { id: 'Name', type: 'Text' },
           { id: 'Description', type: 'Text' },
           { id: 'Color', type: 'Text' },
-          { id: 'Status', type: 'Choice', widgetOptions: JSON.stringify({ choices: [
-            'A valider',
-            "A l'étude",
-            'En développement',
-            'En test',
-            'Activé',
-            'Fermé',
-            'Traitement Gest',
-            'En révision',
-            'Abandonné',
-            'Archivé'
-          ] }) },
+          { id: 'Status', type: 'Choice', widgetOptions: JSON.stringify({ choices: ['active', 'archived', 'completed'] }) },
           { id: 'Start_Date', type: 'Date' },
           { id: 'End_Date', type: 'Date' },
           { id: 'Lead', type: 'Text' },
@@ -2095,7 +2011,7 @@ async function ensureTables() {
         ['task_group', TASKS_TABLE, 'Group_Name', 'Groupe', false, 'Group_Name'],
         ['task_start_date', TASKS_TABLE, 'Start_Date', 'Date début', false, 'Start_Date'],
         ['task_due_date', TASKS_TABLE, 'Due_Date', 'Échéance', false, 'Due_Date'],
-        ['task_service_demandeur', TASKS_TABLE, 'SERVICE DEMANDEUR', 'SERVICE DEMANDEUR', false, 'SERVICE DEMANDEUR'],
+        ['task_category', TASKS_TABLE, 'Category', 'Catégorie', false, 'Category'],
         ['task_tag', TASKS_TABLE, 'Tag', 'Tag', false, 'Tag'],
         ['task_recurrence', TASKS_TABLE, 'Recurrence', 'Récurrence', false, 'Recurrence'],
         ['task_estimated_hours', TASKS_TABLE, 'Estimated_Hours', 'Heures estimées', false, 'Estimated_Hours'],
@@ -2111,7 +2027,6 @@ async function ensureTables() {
         ['project_description', PROJECTS_TABLE, 'Description', 'Description', false, 'Description'],
         ['project_color', PROJECTS_TABLE, 'Color', 'Couleur', false, 'Color'],
         ['project_status', PROJECTS_TABLE, 'Status', 'Statut', false, 'Status'],
-        ['project_service_demandeur', PROJECTS_TABLE, 'SERVICE DEMANDEUR', 'SERVICE DEMANDEUR', false, 'SERVICE DEMANDEUR'],
         // Categories mapping
         ['category_name', CATEGORIES_TABLE, 'Name', 'Nom', true, 'Name'],
         ['category_color', CATEGORIES_TABLE, 'Color', 'Couleur', false, 'Color'],
@@ -2299,8 +2214,6 @@ async function cleanupEmptyDraftTasks() {
 async function loadAllData() {
   // Load column mapping first
   await loadColumnMapping();
-  // Load project reference tables
-  
   
   try {
     var taskData = await grist.docApi.fetchTable(TASKS_TABLE);
@@ -2318,7 +2231,7 @@ async function loadAllData() {
         var groupCol = getColumnName('tasks', 'group');
         var startDateCol = getColumnName('tasks', 'startDate');
         var dueDateCol = getColumnName('tasks', 'dueDate');
-        var serviceDemandeurCol = getColumnName('tasks', 'serviceDemandeur');
+        var categoryCol = getColumnName('tasks', 'category');
         var tagCol = getColumnName('tasks', 'tag');
         var recurrenceCol = getColumnName('tasks', 'recurrence');
         var estimatedHoursCol = getColumnName('tasks', 'estimatedHours');
@@ -2333,7 +2246,7 @@ async function loadAllData() {
         task.Group_Name = taskData[groupCol] ? taskData[groupCol][i] : '';
         task.Start_Date = taskData[startDateCol] ? taskData[startDateCol][i] : null;
         task.Due_Date = taskData[dueDateCol] ? taskData[dueDateCol][i] : null;
-        task.SERVICE_DEMANDEUR = taskData[serviceDemandeurCol] ? taskData[serviceDemandeurCol][i] : '';
+        task.Category = taskData[categoryCol] ? taskData[categoryCol][i] : '';
         task.Tag = taskData[tagCol] ? taskData[tagCol][i] : '';
         task.Recurrence = taskData[recurrenceCol] ? taskData[recurrenceCol][i] : 'none';
         task.Estimated_Hours = taskData[estimatedHoursCol] ? taskData[estimatedHoursCol][i] : 0;
@@ -2403,7 +2316,7 @@ async function loadAllData() {
           Title: tplData.Title ? tplData.Title[i] : '',
           Description: tplData.Description ? tplData.Description[i] : '',
           Priority: tplData.Priority ? tplData.Priority[i] : 'medium',
-          SERVICE_DEMANDEUR: tplData['SERVICE DEMANDEUR'] ? tplData['SERVICE DEMANDEUR'][i] : '',
+          Category: tplData.Category ? tplData.Category[i] : '',
           Estimated_Hours: tplData.Estimated_Hours ? tplData.Estimated_Hours[i] : 0,
           Group_Name: tplData.Group_Name ? tplData.Group_Name[i] : '',
           Tag: tplData.Tag ? tplData.Tag[i] : '',
@@ -2600,23 +2513,6 @@ async function loadAllData() {
   }
 
   try {
-    var serviceData = await grist.docApi.fetchTable(SERVICES_TABLE);
-    PM_SERVICES = [];
-    if (serviceData && serviceData.id) {
-      for (var i = 0; i < serviceData.id.length; i++) {
-        var service = String(serviceData.Service ? serviceData.Service[i] : '').trim();
-        if (service && PM_SERVICES.indexOf(service) === -1) {
-          PM_SERVICES.push(service);
-        }
-      }
-    }
-  } catch (e) {
-    PM_SERVICES = [];
-  }
-
-  console.log('PM_Services chargés:', PM_SERVICES);
-
-  try {
     var projData = await grist.docApi.fetchTable(PROJECTS_TABLE);
     projects = [];
     if (projData && projData.id) {
@@ -2624,8 +2520,6 @@ async function loadAllData() {
       var descCol = getColumnName('projects', 'description');
       var colorCol = getColumnName('projects', 'color');
       var statusCol = getColumnName('projects', 'status');
-      var serviceDemandeurCol = getColumnName('projects', 'serviceDemandeur');
-      var referentMetierCol = getColumnName('projects', 'referentMetier');
       
       for (var i = 0; i < projData.id.length; i++) {
         projects.push({
@@ -2633,10 +2527,7 @@ async function loadAllData() {
           Name: projData[nameCol] ? projData[nameCol][i] : '',
           Description: projData[descCol] ? projData[descCol][i] : '',
           Color: projData[colorCol] ? projData[colorCol][i] : '#6366f1',
-          Status: projData[statusCol] ? projData[statusCol][i] : 'A valider',
-
-          SERVICE_DEMANDEUR: serviceDemandeurCol && projData[serviceDemandeurCol] ? projData[serviceDemandeurCol][i] : '',
-          Referent_Metier: referentMetierCol && projData[referentMetierCol] ? projData[referentMetierCol][i] : '',
+          Status: projData[statusCol] ? projData[statusCol][i] : 'active',
           Start_Date: projData.Start_Date ? projData.Start_Date[i] : null,
           End_Date: projData.End_Date ? projData.End_Date[i] : null,
           Lead: projData.Lead ? projData.Lead[i] : '',
@@ -2749,22 +2640,16 @@ function renderProjectSelector() {
   });
   html += buildFilterCombo('person', currentLang === 'fr' ? '— Personne —' : '— Person —', personOptions, currentFilterAssignee, filterByAssignee);
 
-  // Filtre SERVICE DEMANDEUR
-  var serviceDemandeurOptions = PM_SERVICES.map(function(s) {
-    return { value: s, label: s };
-  });
-
-  html += buildFilterCombo(
-    'serviceDemandeur',
-    '— SERVICE DEMANDEUR —',
-    serviceDemandeurOptions,
-    currentFilterServiceDemandeur,
-    filterByServiceDemandeur
-  );
+  // Filtre Catégorie
+  var allCategories = [];
+  tasks.forEach(function(t) { if (t.Category && allCategories.indexOf(t.Category) === -1) allCategories.push(t.Category); });
+  allCategories.sort();
+  var catOptions = allCategories.map(function(c) { return { value: c, label: c }; });
+  html += buildFilterCombo('category', currentLang === 'fr' ? '— Catégorie —' : '— Category —', catOptions, currentFilterCategory, filterByCategory);
 
   // Filtre Tag
   var tagOptions = tags.map(function(tag) { return { value: tag.Name, label: tag.Name }; });
-  html += buildFilterCombo('tag', '— Statut —', tagOptions, currentFilterTag, filterByTag);
+  html += buildFilterCombo('tag', '— Tag —', tagOptions, currentFilterTag, filterByTag);
 
   // Filtre Projet — combobox moderne avec recherche intégrée
   var selProj = currentProjectId ? projects.find(function(p) { return p.id === currentProjectId; }) : null;
@@ -2816,7 +2701,7 @@ function renderProjectSelector() {
     html += '<button class="btn-icon" onclick="toggleMyProjects()" title="' + (currentLang === 'fr' ? 'Mes projets : créés par moi ou qui me sont assignés' : 'My projects: created by or assigned to me') + '" style="width:auto;padding:0 12px;font-size:12px;font-weight:600;' + (mineOnly ? 'background:#6366f1;color:#fff;border-color:#6366f1;' : '') + '">👤 ' + (currentLang === 'fr' ? 'Mes projets' : 'My projects') + '</button>';
   }
 
-  if (currentFilterRole || currentFilterAssignee || currentFilterServiceDemandeur || currentFilterTag || currentProjectId || mineOnly) {
+  if (currentFilterRole || currentFilterAssignee || currentFilterCategory || currentFilterTag || currentProjectId || mineOnly) {
     html += '<button class="btn-icon" onclick="resetFilters()" title="' + (currentLang === 'fr' ? 'Réinitialiser les filtres' : 'Reset filters') + '" style="color:#ef4444;">✕</button>';
   }
 
@@ -2831,7 +2716,7 @@ function renderProjectSelector() {
     var appEl = document.querySelector('.app-container') || document.body;
     appEl.insertBefore(banner, appEl.firstChild);
   }
-  if (currentFilterRole || currentFilterAssignee || currentFilterServiceDemandeur || currentFilterTag || currentProjectId || mineOnly) {
+  if (currentFilterRole || currentFilterAssignee || currentFilterCategory || currentFilterTag || currentProjectId || mineOnly) {
     var proj2 = currentProjectId ? projects.find(function(p) { return p.id === currentProjectId; }) : null;
     var c2 = (proj2 && proj2.Color) ? proj2.Color : '#6366f1';
     var bits = [];
@@ -2842,7 +2727,7 @@ function renderProjectSelector() {
       var displayName = u ? (u.Name || u.Email) : currentFilterAssignee;
       bits.push('👤 ' + sanitize(displayName));
     }
-    if (currentFilterServiceDemandeur) bits.push('📁 ' + sanitize(currentFilterServiceDemandeur));
+    if (currentFilterCategory) bits.push('📁 ' + sanitize(currentFilterCategory));
     if (currentFilterTag) bits.push('🏷️ ' + sanitize(currentFilterTag));
     if (proj2) bits.push('🎯 ' + sanitize(proj2.Name));
     banner.innerHTML = (currentLang === 'fr' ? 'Filtres actifs : ' : 'Active filters: ') + '<strong>' + bits.join(' › ') + '</strong> — <a href="#" onclick="resetFilters();return false;" style="color:inherit;text-decoration:underline;">' + (currentLang === 'fr' ? 'Tout effacer' : 'Clear all') + '</a>';
@@ -3148,7 +3033,7 @@ function persistFilters() {
   try {
     localStorage.setItem(filtersStorageKey(), JSON.stringify({
       role: currentFilterRole, assignee: currentFilterAssignee,
-      category: currentFilterServiceDemandeur, tag: currentFilterTag, mineOnly: mineOnly
+      category: currentFilterCategory, tag: currentFilterTag, mineOnly: mineOnly
     }));
   } catch (e) {}
 }
@@ -3164,10 +3049,10 @@ function sanitizeRestoredFilters() {
     if (!known) currentFilterRole = null;
   }
   if (currentFilterAssignee && !findUserByIdent(currentFilterAssignee)) currentFilterAssignee = null;
-  if (currentFilterServiceDemandeur) {
-    var catKey = String(currentFilterServiceDemandeur).trim();
-    var catFound = tasks.some(function(t) { return String(t.SERVICE_DEMANDEUR || '').trim() === catKey; });
-    if (!catFound) currentFilterServiceDemandeur = null;
+  if (currentFilterCategory) {
+    var catKey = String(currentFilterCategory).trim();
+    var catFound = tasks.some(function(t) { return String(t.Category || '').trim() === catKey; });
+    if (!catFound) currentFilterCategory = null;
   }
   if (currentFilterTag) {
     var tagKey = String(currentFilterTag).trim();
@@ -3184,7 +3069,7 @@ function restoreFilters() {
     var s = JSON.parse(localStorage.getItem(filtersStorageKey()) || '{}');
     currentFilterRole = s.role || null;
     currentFilterAssignee = s.assignee || null;
-    currentFilterServiceDemandeur = s.category || null;
+    currentFilterCategory = s.category || null;
     currentFilterTag = s.tag || null;
     mineOnly = !!s.mineOnly;
   } catch (e) {}
@@ -3226,8 +3111,8 @@ function filterByAssignee(name) {
   refreshAllViews();
 }
 
-function filterByServiceDemandeur(val) {
-  currentFilterServiceDemandeur = val || null;
+function filterByCategory(val) {
+  currentFilterCategory = val || null;
   persistFilters();
   renderProjectSelector();
   refreshAllViews();
@@ -3243,7 +3128,7 @@ function filterByTag(val) {
 function resetFilters() {
   currentFilterRole = null;
   currentFilterAssignee = null;
-  currentFilterServiceDemandeur = null;
+  currentFilterCategory = null;
   currentFilterTag = null;
   mineOnly = false;
   currentProjectId = null;
@@ -3274,9 +3159,9 @@ function getFilteredTasks() {
     var identSet = personIdentSet(currentFilterAssignee);
     result = result.filter(function(t) { return assigneeListHas(t.Assignee, identSet); });
   }
-  if (currentFilterServiceDemandeur) {
-    var catKey = String(currentFilterServiceDemandeur).trim();
-    result = result.filter(function(t) { return String(t.SERVICE_DEMANDEUR || '').trim() === catKey; });
+  if (currentFilterCategory) {
+    var catKey = String(currentFilterCategory).trim();
+    result = result.filter(function(t) { return String(t.Category || '').trim() === catKey; });
   }
   if (currentFilterTag) {
     var tagKey = String(currentFilterTag).trim();
@@ -4112,11 +3997,12 @@ function renderTaskCard(task) {
     html += '</div>';
   }
 
-  if ((cd.serviceDemandeur && task.SERVICE_DEMANDEUR) || (cd.tags && task.Tag)) {
+  if ((cd.category && task.Category) || (cd.tags && task.Tag)) {
     html += '<div class="task-card-row" style="gap:6px;flex-wrap:wrap;">';
-    if (cd.serviceDemandeur && task.SERVICE_DEMANDEUR) {
-      var catColor = '#6366f1';
-      html += '<span style="font-size:10px;color:' + catColor + ';font-weight:700;">| ' + sanitize(task.SERVICE_DEMANDEUR) + '</span>';
+    if (cd.category && task.Category) {
+      var catObj = categories.find(function(c) { return c.Name === task.Category; });
+      var catColor = catObj ? catObj.Color : '#6366f1';
+      html += '<span style="font-size:10px;color:' + catColor + ';font-weight:700;">| ' + sanitize(task.Category) + '</span>';
     }
     if (cd.tags && task.Tag) {
       var tagList = task.Tag.split(',').map(function(tg) { return tg.trim(); }).filter(Boolean);
@@ -5486,7 +5372,7 @@ function renderTemplatesView() {
   var filtered = templates.filter(function(tpl) {
     if (filterPriority && tpl.Priority !== filterPriority) return false;
     if (search) {
-      var text = (tpl.Title + ' ' + tpl.Description + ' ' + tpl.SERVICE_DEMANDEUR).toLowerCase();
+      var text = (tpl.Title + ' ' + tpl.Description + ' ' + tpl.Category).toLowerCase();
       if (text.indexOf(search) === -1) return false;
     }
     return true;
@@ -5501,7 +5387,7 @@ function renderTemplatesView() {
     html += '<div class="template-card-info">';
     html += '<h4>' + sanitize(tpl.Title) + '</h4>';
     html += '<div class="template-meta">';
-    if (tpl.SERVICE_DEMANDEUR) html += '🏷️ ' + sanitize(tpl.SERVICE_DEMANDEUR);
+    if (tpl.Category) html += '🏷️ ' + sanitize(tpl.Category);
     html += ' <span class="priority-dot ' + dotClass + '"></span> ' + priorityLabel(tpl.Priority);
     if (tpl.Estimated_Hours) html += ' ⏱️ ' + tpl.Estimated_Hours + 'h';
     html += ' 📊 ' + (tpl.Usage_Count || 0) + ' ' + (currentLang === 'fr' ? 'utilisations' : 'uses');
@@ -6262,8 +6148,8 @@ function openNewTaskModal(defaultStatus) {
   }
   html += '<div class="detail-field">';
   html += '<span class="detail-field-icon">📁</span>';
-  html += '<span class="detail-field-label">' + 'SERVICE DEMANDEUR' + '</span>';
-  html += '<div class="detail-field-value"><select id="task-service-demandeur">' + newCategoryOptions + '</select></div>';
+  html += '<span class="detail-field-label">' + t('fieldCategory') + '</span>';
+  html += '<div class="detail-field-value"><select id="task-category">' + newCategoryOptions + '</select></div>';
   html += '</div>';
 
   // Tag
@@ -6309,7 +6195,7 @@ async function startNewTask(defaultStatus, dateStr, prefill) {
   setField(record, 'tasks', 'status', defaultStatus || (statuses[0] && statuses[0].key) || 'todo');
   setField(record, 'tasks', 'priority', prefill.priority || 'medium');
   if (prefill.description) setField(record, 'tasks', 'description', prefill.description);
-  if (prefill.serviceDemandeur) setField(record, 'tasks', 'serviceDemandeur', prefill.serviceDemandeur);
+  if (prefill.category) setField(record, 'tasks', 'category', prefill.category);
   if (prefill.group) setField(record, 'tasks', 'group', prefill.group);
   if (prefill.tag) setField(record, 'tasks', 'tag', prefill.tag);
   if (prefill.recurrence && prefill.recurrence !== 'none') setField(record, 'tasks', 'recurrence', prefill.recurrence);
@@ -6465,13 +6351,13 @@ function openEditTaskModal(taskId, preserveAssignees) {
   // Category
   var categoryOptions = '<option value="">--</option>';
   for (var ci = 0; ci < categories.length; ci++) {
-    var catSel = categories[ci].Name === task.SERVICE_DEMANDEUR ? ' selected' : '';
+    var catSel = categories[ci].Name === task.Category ? ' selected' : '';
     categoryOptions += '<option value="' + sanitize(categories[ci].Name) + '"' + catSel + '>' + sanitize(categories[ci].Name) + '</option>';
   }
   html += '<div class="detail-field">';
   html += '<span class="detail-field-icon">📁</span>';
-  html += '<span class="detail-field-label">' + 'SERVICE DEMANDEUR' + '</span>';
-  html += '<div class="detail-field-value"><select id="task-service-demandeur">' + categoryOptions + '</select></div>';
+  html += '<span class="detail-field-label">' + t('fieldCategory') + '</span>';
+  html += '<div class="detail-field-value"><select id="task-category">' + categoryOptions + '</select></div>';
   html += '</div>';
 
   // Tag
@@ -7111,7 +6997,7 @@ async function persistTaskFormFields(taskId) {
   if ((el = document.getElementById('task-group'))) setField(record, 'tasks', 'group', el.value);
   if ((el = document.getElementById('task-start'))) setField(record, 'tasks', 'startDate', toEpoch(el.value));
   if ((el = document.getElementById('task-due'))) setField(record, 'tasks', 'dueDate', toEpoch(el.value));
-  if ((el = document.getElementById('task-service-demandeur'))) setField(record, 'tasks', 'serviceDemandeur', el.value.trim());
+  if ((el = document.getElementById('task-category'))) setField(record, 'tasks', 'category', el.value.trim());
   if ((el = document.getElementById('task-project'))) setField(record, 'tasks', 'projectId', el.value ? parseInt(el.value) : 0);
   if ((el = document.getElementById('task-recurrence'))) setField(record, 'tasks', 'recurrence', el.value);
   if ((el = document.getElementById('task-tag'))) setField(record, 'tasks', 'tag', el.value.trim());
@@ -7819,7 +7705,7 @@ async function generateOccurrences(taskId, period) {
     var startOffset = (task.Start_Date && task.Due_Date) ? (task.Due_Date - task.Start_Date) : 0;
     setField(record, 'tasks', 'startDate', cursor - startOffset);
     setField(record, 'tasks', 'dueDate', cursor);
-    setField(record, 'tasks', 'serviceDemandeur', task.SERVICE_DEMANDEUR);
+    setField(record, 'tasks', 'category', task.Category);
     setField(record, 'tasks', 'tag', task.Tag);
     setField(record, 'tasks', 'recurrence', task.Recurrence);
     setField(record, 'tasks', 'estimatedHours', task.Estimated_Hours);
@@ -7883,7 +7769,7 @@ async function createNextOccurrence(task) {
     setField(record, 'tasks', 'group', task.Group_Name);
     setField(record, 'tasks', 'startDate', newStartDate);
     setField(record, 'tasks', 'dueDate', newDueDate);
-    setField(record, 'tasks', 'serviceDemandeur', task.SERVICE_DEMANDEUR);
+    setField(record, 'tasks', 'category', task.Category);
     setField(record, 'tasks', 'tag', task.Tag);
     setField(record, 'tasks', 'recurrence', task.Recurrence);
     setField(record, 'tasks', 'estimatedHours', task.Estimated_Hours);
@@ -7906,7 +7792,7 @@ function openNewTemplateModal(tplId) {
   var title = editing ? sanitize(tpl.Title || '') : '';
   var desc = editing ? sanitize(tpl.Description || '') : '';
   var priority = editing ? (tpl.Priority || 'medium') : 'medium';
-  var serviceDemandeur = editing ? (tpl.SERVICE_DEMANDEUR || '') : '';
+  var category = editing ? (tpl.Category || '') : '';
   var hours = editing ? (tpl.Estimated_Hours || '') : '';
   var tplGroup = editing ? (tpl.Group_Name || '') : '';
   var tplTag = editing ? (tpl.Tag || '') : '';
@@ -7924,12 +7810,12 @@ function openNewTemplateModal(tplId) {
   html += '<option value="high"' + (priority === 'high' ? ' selected' : '') + '>' + t('priorityHigh') + '</option>';
   html += '<option value="low"' + (priority === 'low' ? ' selected' : '') + '>' + t('priorityLow') + '</option>';
   html += '</select></div>';
-  var tplServiceDemandeurOptions = buildServiceDemandeurOptions(serviceDemandeur);
+  var tplCatOptions = '<option value=""' + (!category ? ' selected' : '') + '>--</option>';
   for (var tci = 0; tci < categories.length; tci++) {
     var catName = categories[tci].Name;
-    tplServiceDemandeurOptions += '<option value="' + sanitize(catName) + '"' + (catName === category ? ' selected' : '') + '>' + sanitize(catName) + '</option>';
+    tplCatOptions += '<option value="' + sanitize(catName) + '"' + (catName === category ? ' selected' : '') + '>' + sanitize(catName) + '</option>';
   }
-  html += '<div class="form-group"><label>' + 'SERVICE DEMANDEUR' + '</label><select id="tpl-service-demandeur">' + tplServiceDemandeurOptions + '</select></div>';
+  html += '<div class="form-group"><label>' + t('fieldCategory') + '</label><select id="tpl-category">' + tplCatOptions + '</select></div>';
   html += '</div>';
   html += '<div class="form-group"><label>' + t('fieldEstimatedTime') + '</label><input type="number" id="tpl-hours" step="0.5" min="0" value="' + hours + '" /></div>';
   // Groupe + Tag
@@ -8005,7 +7891,7 @@ async function createTask() {
   setField(record, 'tasks', 'group', document.getElementById('task-group').value);
   setField(record, 'tasks', 'startDate', toEpoch(document.getElementById('task-start').value));
   setField(record, 'tasks', 'dueDate', toEpoch(document.getElementById('task-due').value));
-  setField(record, 'tasks', 'serviceDemandeur', document.getElementById('task-service-demandeur').value.trim());
+  setField(record, 'tasks', 'category', document.getElementById('task-category').value.trim());
   setField(record, 'tasks', 'projectId', projectId);
   setField(record, 'tasks', 'createdAt', Math.floor(Date.now() / 1000));
   // B4 : prolongation auto activée par défaut sur les nouvelles tâches (modifiable ensuite)
@@ -8076,7 +7962,7 @@ async function updateTask(taskId) {
   setField(record, 'tasks', 'group', document.getElementById('task-group').value);
   setField(record, 'tasks', 'startDate', toEpoch(document.getElementById('task-start').value));
   setField(record, 'tasks', 'dueDate', toEpoch(document.getElementById('task-due').value));
-  setField(record, 'tasks', 'serviceDemandeur', document.getElementById('task-service-demandeur').value.trim());
+  setField(record, 'tasks', 'category', document.getElementById('task-category').value.trim());
   setField(record, 'tasks', 'projectId', projectId);
   setField(record, 'tasks', 'recurrence', newRecurrence);
   
@@ -8163,7 +8049,7 @@ async function createTemplate() {
     Title: title,
     Description: document.getElementById('tpl-desc').value.trim(),
     Priority: document.getElementById('tpl-priority').value,
-    SERVICE_DEMANDEUR: document.getElementById('tpl-service-demandeur').value.trim(),
+    Category: document.getElementById('tpl-category').value.trim(),
     Estimated_Hours: parseFloat(document.getElementById('tpl-hours').value) || 0,
     Group_Name: (document.getElementById('tpl-group') || {}).value || '',
     Tag: (document.getElementById('tpl-tag') || {}).value || '',
@@ -8192,7 +8078,7 @@ async function updateTemplate(tplId) {
     Title: title,
     Description: document.getElementById('tpl-desc').value.trim(),
     Priority: document.getElementById('tpl-priority').value,
-    SERVICE_DEMANDEUR: document.getElementById('tpl-service-demandeur').value.trim(),
+    Category: document.getElementById('tpl-category').value.trim(),
     Estimated_Hours: parseFloat(document.getElementById('tpl-hours').value) || 0,
     Group_Name: (document.getElementById('tpl-group') || {}).value || '',
     Tag: (document.getElementById('tpl-tag') || {}).value || '',
@@ -8244,7 +8130,7 @@ async function useTemplate(tplId) {
     title: tpl.Title || '',
     description: tpl.Description || '',
     priority: tpl.Priority || 'medium',
-    serviceDemandeur: tpl.SERVICE_DEMANDEUR || '',
+    category: tpl.Category || '',
     group: tpl.Group_Name || '',
     tag: tpl.Tag || '',
     recurrence: tpl.Recurrence || 'none',
@@ -8394,11 +8280,11 @@ function renderStatsView() {
   var statusChart = document.getElementById('chart-status');
   if (statusChart) statusChart.innerHTML = statusHtml;
 
-  // SERVICE DEMANDEUR chart
+  // SERVICE DEMANDEUR chart - basé sur le champ Category
   var serviceCounts = {};
 
   filteredTasks.forEach(function(t) {
-    var service = String(t.SERVICE_DEMANDEUR || '').trim();
+    var service = String(t.Category || '').trim();
     if (!service) return;
 
     if (service.indexOf(',') !== -1) {
@@ -8444,7 +8330,7 @@ function renderStatsView() {
     serviceHtml = '<div style="text-align:center;color:#94a3b8;width:100%;">Aucune donnée</div>';
   }
 
-  var serviceChart = document.getElementById('chart-service-demandeur');
+  var serviceChart = document.getElementById('chart-category');
   if (serviceChart) serviceChart.innerHTML = serviceHtml;
 
   // Assignee chart
@@ -8952,11 +8838,7 @@ function openProjectModal() {
   document.getElementById('project-name').value = '';
   document.getElementById('project-description').value = '';
   document.getElementById('project-color').value = '#6366f1';
-  document.getElementById('project-status').value = 'A valider';
-  var serviceEl = document.getElementById('project-service-demandeur');
-  if (serviceEl) serviceEl.value = '';
-  var referentMetierEl = document.getElementById('project-referent-metier');
-  if (referentMetierEl) referentMetierEl.value = '';
+  document.getElementById('project-status').value = 'active';
   populateProjectLead('');
   document.getElementById('project-form-title').textContent = t('addProject');
   var psearch = document.getElementById('project-search');
@@ -9036,11 +8918,7 @@ function editProject(projectId) {
   document.getElementById('project-name').value = proj.Name || '';
   document.getElementById('project-description').value = proj.Description || '';
   document.getElementById('project-color').value = proj.Color || '#6366f1';
-  document.getElementById('project-status').value = proj.Status || 'A valider';
-  var serviceEl = document.getElementById('project-service-demandeur');
-  if (serviceEl) serviceEl.value = proj.SERVICE_DEMANDEUR || '';
-  var referentMetierEl = document.getElementById('project-referent-metier');
-  if (referentMetierEl) referentMetierEl.value = proj.Referent_Metier || '';
+  document.getElementById('project-status').value = proj.Status || 'active';
   populateProjectLead(proj.Lead || '');
   document.getElementById('project-form-title').textContent = t('editProject');
 }
@@ -9051,10 +8929,6 @@ async function saveProject() {
   var description = document.getElementById('project-description').value.trim();
   var color = document.getElementById('project-color').value;
   var status = document.getElementById('project-status').value;
-  var serviceDemandeurEl = document.getElementById('project-service-demandeur');
-  var serviceDemandeur = serviceDemandeurEl ? serviceDemandeurEl.value : '';
-  var referentMetierEl = document.getElementById('project-referent-metier');
-  var referentMetier = referentMetierEl ? referentMetierEl.value.trim() : '';
   var leadEl = document.getElementById('project-lead');
   var lead = leadEl ? leadEl.value : '';
 
@@ -9069,8 +8943,6 @@ async function saveProject() {
     setField(record, 'projects', 'description', description);
     setField(record, 'projects', 'color', color);
     setField(record, 'projects', 'status', status);
-    setField(record, 'projects', 'serviceDemandeur', serviceDemandeur);
-    setField(record, 'projects', 'referentMetier', referentMetier);
     setField(record, 'projects', 'lead', lead);
     
     if (projectId) {
@@ -9097,11 +8969,7 @@ async function saveProject() {
     document.getElementById('project-name').value = '';
     document.getElementById('project-description').value = '';
     document.getElementById('project-color').value = '#6366f1';
-    document.getElementById('project-status').value = 'A valider';
-    var serviceElReset = document.getElementById('project-service-demandeur');
-    if (serviceElReset) serviceElReset.value = '';
-    var referentMetierElReset = document.getElementById('project-referent-metier');
-    if (referentMetierElReset) referentMetierElReset.value = '';
+    document.getElementById('project-status').value = 'active';
     populateProjectLead('');
     document.getElementById('project-form-title').textContent = t('addProject');
   } catch (e) {
@@ -9890,20 +9758,8 @@ function openProjectModalForEdit(projectId) {
   var proj = projects.find(function(p) { return p.id === projectId; });
   if (!proj) return;
 
-  var statusOptions = PM_STATUTS.length
-    ? PM_STATUTS.map(function(status) { return status.name; })
-    : [
-        'A valider',
-        "A l'étude",
-        'En développement',
-        'En test',
-        'Activé',
-        'Fermé',
-        'Traitement Gest',
-        'En révision',
-        'Abandonné',
-        'Archivé'
-      ];
+  var statusOptions = ['active', 'archived', 'completed'];
+  var statusLabels = { active: currentLang === 'fr' ? 'Actif' : 'Active', archived: currentLang === 'fr' ? 'Archivé' : 'Archived', completed: currentLang === 'fr' ? 'Terminé' : 'Completed' };
 
   var html = '<div class="modal-overlay" onclick="closeModal(event)">';
   html += '<div class="modal" style="max-width:420px;" onclick="event.stopPropagation()">';
@@ -9914,17 +9770,13 @@ function openProjectModalForEdit(projectId) {
   html += '<input type="text" id="inline-proj-name" class="form-input" value="' + sanitize(proj.Name || '') + '"></div>';
   html += '<div class="form-group"><label>' + (currentLang === 'fr' ? 'Description' : 'Description') + '</label>';
   html += '<textarea id="inline-proj-desc" class="form-input" rows="2">' + sanitize(proj.Description || '') + '</textarea></div>';
-  html += '<div class="form-group"><label>SERVICE DEMANDEUR</label>';
-  html += '<select id="inline-proj-service-demandeur" class="form-input">';
-  html += buildServiceDemandeurOptions(proj.SERVICE_DEMANDEUR || '');
-  html += '</select></div>';
   html += '<div style="display:flex;gap:12px;">';
   html += '<div class="form-group" style="flex:1"><label>' + (currentLang === 'fr' ? 'Couleur' : 'Color') + '</label>';
   html += '<input type="color" id="inline-proj-color" value="' + (proj.Color || '#6366f1') + '" style="width:48px;height:36px;border:none;cursor:pointer;"></div>';
   html += '<div class="form-group" style="flex:2"><label>' + (currentLang === 'fr' ? 'Statut' : 'Status') + '</label>';
   html += '<select id="inline-proj-status" class="form-input">';
   statusOptions.forEach(function(s) {
-    html += '<option value="' + s + '"' + (proj.Status === s ? ' selected' : '') + '>' + s + '</option>';
+    html += '<option value="' + s + '"' + (proj.Status === s ? ' selected' : '') + '>' + (statusLabels[s] || s) + '</option>';
   });
   html += '</select></div></div>';
   html += '</div>';
@@ -9942,9 +9794,8 @@ async function saveInlineProjectEdit(projectId) {
   var record = {};
   setField(record, 'projects', 'name', name);
   setField(record, 'projects', 'description', document.getElementById('inline-proj-desc').value || '');
-  setField(record, 'projects', 'serviceDemandeur', document.getElementById('inline-proj-service-demandeur').value || '');
   setField(record, 'projects', 'color', document.getElementById('inline-proj-color').value || '#6366f1');
-  setField(record, 'projects', 'status', document.getElementById('inline-proj-status').value || 'A valider');
+  setField(record, 'projects', 'status', document.getElementById('inline-proj-status').value || 'active');
   try {
     await grist.docApi.applyUserActions([['UpdateRecord', PROJECTS_TABLE, projectId, record]]);
     showToast((currentLang === 'fr' ? 'Projet modifié' : 'Project updated') + ' ✓', 'success');
@@ -9963,12 +9814,12 @@ function renderSettingsCategoriesList() {
   if (!container) return;
   
   var html = '';
-  if (PM_SERVICES.length === 0) {
-    html = '<div style="text-align:center;color:#94a3b8;padding:20px;">' + (currentLang === 'fr' ? 'Aucun service' : 'No services') + '</div>';
+  if (categories.length === 0) {
+    html = '<div style="text-align:center;color:#94a3b8;padding:20px;">' + (currentLang === 'fr' ? 'Aucune catégorie' : 'No categories') + '</div>';
   } else {
     html = '<div class="settings-chips">';
-    PM_SERVICES.forEach(function(service) {
-      html += '<span class="settings-chip">' + sanitize(service) + '</span>';
+    categories.forEach(function(cat) {
+      html += '<span class="settings-chip" style="background:' + (cat.Color || '#6366f1') + ';color:white;">' + sanitize(cat.Name) + '</span>';
     });
     html += '</div>';
   }
@@ -10220,7 +10071,7 @@ async function saveColumnMapping() {
     
     // Tasks mappings
     var tasksTable = document.getElementById('mapping-tasks-table').value;
-    var taskFields = ['title', 'description', 'status', 'priority', 'assignee', 'group', 'startDate', 'dueDate', 'serviceDemandeur', 'tag', 'recurrence', 'estimatedHours', 'createdAt', 'projectId'];
+    var taskFields = ['title', 'description', 'status', 'priority', 'assignee', 'group', 'startDate', 'dueDate', 'category', 'tag', 'recurrence', 'estimatedHours', 'createdAt', 'projectId'];
     for (var i = 0; i < taskFields.length; i++) {
       var field = taskFields[i];
       var el = document.getElementById('map-task-' + field);
@@ -10244,7 +10095,7 @@ async function saveColumnMapping() {
     
     // Projects mappings
     var projectsTable = document.getElementById('mapping-projects-table').value;
-    var projectFields = ['name', 'description', 'color', 'status', 'serviceDemandeur'];
+    var projectFields = ['name', 'description', 'color', 'status'];
     for (var i = 0; i < projectFields.length; i++) {
       var field = projectFields[i];
       var el = document.getElementById('map-project-' + field);
@@ -10736,7 +10587,7 @@ function globalSearch(query) {
   var results = getFilteredTasks().filter(function(t) {
     return (t.Title && t.Title.toLowerCase().indexOf(q) !== -1) ||
            (t.Description && t.Description.toLowerCase().indexOf(q) !== -1) ||
-           (t.SERVICE_DEMANDEUR && t.SERVICE_DEMANDEUR.toLowerCase().indexOf(q) !== -1);
+           (t.Category && t.Category.toLowerCase().indexOf(q) !== -1);
   }).slice(0, 10);
   
   if (results.length === 0) {
@@ -10747,7 +10598,7 @@ function globalSearch(query) {
       var task = results[i];
       html += '<div class="search-result-item" onclick="openEditTaskModal(' + task.id + '); closeSearch();">';
       html += '<div class="search-result-title">' + sanitize(task.Title) + '</div>';
-      html += '<div class="search-result-meta">' + (task.SERVICE_DEMANDEUR || '') + ' • ' + t('status' + task.Status.charAt(0).toUpperCase() + task.Status.slice(1)) + '</div>';
+      html += '<div class="search-result-meta">' + (task.Category || '') + ' • ' + t('status' + task.Status.charAt(0).toUpperCase() + task.Status.slice(1)) + '</div>';
       html += '</div>';
     }
     resultsContainer.innerHTML = html;
@@ -10787,7 +10638,7 @@ function loadDarkModePreference() {
 
 function exportTasks(format) {
   if (format === 'csv') {
-    var csv = 'Titre,Description,Statut,Priorité,SERVICE DEMANDEUR,Assigné,Date début,Échéance\n';
+    var csv = 'Titre,Description,Statut,Priorité,Catégorie,Assigné,Date début,Échéance\n';
     for (var i = 0; i < tasks.length; i++) {
       var t = tasks[i];
       csv += '"' + (t.Title || '').replace(/"/g, '""') + '",';

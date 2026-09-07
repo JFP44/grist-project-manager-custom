@@ -1,0 +1,106 @@
+77:    fieldCategory: 'Catégorie',
+166:    settingsSubtitle: 'Configurez vos projets, catégories et autres options',
+168:    categoriesSubtitle: 'Gérez les catégories de tâches',
+170:    addCategory: 'Ajouter',
+177:    categories: 'Catégories',
+292:    categories: 'Catégories',
+293:    manageCategories: 'Gérer les catégories',
+294:    addCategory: 'Ajouter',
+295:    categoryCreated: 'Catégorie créée',
+296:    categoryDeleted: 'Catégorie supprimée',
+297:    noCategories: 'Aucune catégorie',
+419:    fieldCategory: 'Category',
+508:    addCategory: 'Add',
+636:    addCategory: 'Add',
+637:    categoryCreated: 'Category created',
+638:    categoryDeleted: 'Category deleted',
+744:var currentFilterCategory = null;
+796:var defaultCardDisplay = { description: true, priority: true, date: true, assignee: true, tags: true, category: true, time: true, subtasks: true, comments: true };
+910:    category: 'Category',
+1003:      } else if (key.startsWith('category_')) {
+1019:      else if (key === 'category_name') CATEGORIES_TABLE = tableName;
+1773:          { id: 'Category', type: 'Text' },
+1808:          { id: 'Category', type: 'Text' },
+2014:        ['task_category', TASKS_TABLE, 'Category', 'Catégorie', false, 'Category'],
+2031:        ['category_name', CATEGORIES_TABLE, 'Name', 'Nom', true, 'Name'],
+2032:        ['category_color', CATEGORIES_TABLE, 'Color', 'Couleur', false, 'Color'],
+2033:        ['category_order', CATEGORIES_TABLE, 'Order', 'Ordre', false, 'Order'],
+2234:        var categoryCol = getColumnName('tasks', 'category');
+2249:        task.Category = taskData[categoryCol] ? taskData[categoryCol][i] : '';
+2319:          Category: tplData.Category ? tplData.Category[i] : '',
+2643:  // Filtre Catégorie
+2645:  tasks.forEach(function(t) { if (t.Category && allCategories.indexOf(t.Category) === -1) allCategories.push(t.Category); });
+2648:  html += buildFilterCombo('category', currentLang === 'fr' ? '— Catégorie —' : '— Category —', catOptions, currentFilterCategory, filterByCategory);
+2704:  if (currentFilterRole || currentFilterAssignee || currentFilterCategory || currentFilterTag || currentProjectId || mineOnly) {
+2719:  if (currentFilterRole || currentFilterAssignee || currentFilterCategory || currentFilterTag || currentProjectId || mineOnly) {
+2730:    if (currentFilterCategory) bits.push('📁 ' + sanitize(currentFilterCategory));
+2754:    // navigateur) : une catégorie/tag avec & < > " arrive intacte au callback.
+3036:      category: currentFilterCategory, tag: currentFilterTag, mineOnly: mineOnly
+3052:  if (currentFilterCategory) {
+3053:    var catKey = String(currentFilterCategory).trim();
+3054:    var catFound = tasks.some(function(t) { return String(t.Category || '').trim() === catKey; });
+3055:    if (!catFound) currentFilterCategory = null;
+3072:    currentFilterCategory = s.category || null;
+3114:function filterByCategory(val) {
+3115:  currentFilterCategory = val || null;
+3131:  currentFilterCategory = null;
+3162:  if (currentFilterCategory) {
+3163:    var catKey = String(currentFilterCategory).trim();
+3164:    result = result.filter(function(t) { return String(t.Category || '').trim() === catKey; });
+4000:  if ((cd.category && task.Category) || (cd.tags && task.Tag)) {
+4002:    if (cd.category && task.Category) {
+4003:      var catObj = categories.find(function(c) { return c.Name === task.Category; });
+4005:      html += '<span style="font-size:10px;color:' + catColor + ';font-weight:700;">| ' + sanitize(task.Category) + '</span>';
+5375:      var text = (tpl.Title + ' ' + tpl.Description + ' ' + tpl.Category).toLowerCase();
+5390:    if (tpl.Category) html += '🏷️ ' + sanitize(tpl.Category);
+5513:    html += '<span class="category-chip" style="background:' + (cat.Color || '#6366f1') + '20;color:' + (cat.Color || '#6366f1') + ';border:1px solid ' + (cat.Color || '#6366f1') + '40;">';
+5535:      html += '<span class="category-color-dot" style="background:' + (cat.Color || '#6366f1') + ';"></span>';
+5537:      html += '<button class="cf-delete-btn" onclick="editCategory(' + cat.id + ',\'' + sanitize(cat.Name).replace(/'/g, "\\'") + '\',\'' + (cat.Color || '#6366f1') + '\')">✏️</button>';
+5538:      html += '<button class="cf-delete-btn" onclick="deleteCategory(' + cat.id + ')">🗑️</button>';
+5544:  // Add / edit category form
+5546:  html += '<h4 id="cat-form-title">' + t('addCategory') + '</h4>';
+5551:  html += '<button class="btn btn-primary" onclick="saveCategory()">' + t('save') + '</button>';
+5560:function editCategory(catId, name, color) {
+5567:async function saveCategory() {
+5588:      showToast(t('categoryCreated'), 'success');
+5595:    console.error('Error adding category:', e);
+5600:async function deleteCategory(categoryId) {
+5602:  var confirmed = await showConfirmModal(currentLang === 'fr' ? 'Supprimer cette catégorie ?' : 'Delete this category?', currentLang === 'fr' ? 'Supprimer' : 'Delete');
+5607:      ['RemoveRecord', CATEGORIES_TABLE, categoryId]
+5609:    showToast(t('categoryDeleted'), 'info');
+5615:    console.error('Error deleting category:', e);
+6144:  // Category
+6145:  var newCategoryOptions = '<option value="">--</option>';
+6147:    newCategoryOptions += '<option value="' + sanitize(categories[nci].Name) + '">' + sanitize(categories[nci].Name) + '</option>';
+6151:  html += '<span class="detail-field-label">' + t('fieldCategory') + '</span>';
+6152:  html += '<div class="detail-field-value"><select id="task-category">' + newCategoryOptions + '</select></div>';
+6198:  if (prefill.category) setField(record, 'tasks', 'category', prefill.category);
+6351:  // Category
+6352:  var categoryOptions = '<option value="">--</option>';
+6354:    var catSel = categories[ci].Name === task.Category ? ' selected' : '';
+6355:    categoryOptions += '<option value="' + sanitize(categories[ci].Name) + '"' + catSel + '>' + sanitize(categories[ci].Name) + '</option>';
+6359:  html += '<span class="detail-field-label">' + t('fieldCategory') + '</span>';
+6360:  html += '<div class="detail-field-value"><select id="task-category">' + categoryOptions + '</select></div>';
+7000:  if ((el = document.getElementById('task-category'))) setField(record, 'tasks', 'category', el.value.trim());
+7708:    setField(record, 'tasks', 'category', task.Category);
+7772:    setField(record, 'tasks', 'category', task.Category);
+7795:  var category = editing ? (tpl.Category || '') : '';
+7813:  var tplCatOptions = '<option value=""' + (!category ? ' selected' : '') + '>--</option>';
+7816:    tplCatOptions += '<option value="' + sanitize(catName) + '"' + (catName === category ? ' selected' : '') + '>' + sanitize(catName) + '</option>';
+7818:  html += '<div class="form-group"><label>' + t('fieldCategory') + '</label><select id="tpl-category">' + tplCatOptions + '</select></div>';
+7894:  setField(record, 'tasks', 'category', document.getElementById('task-category').value.trim());
+7965:  setField(record, 'tasks', 'category', document.getElementById('task-category').value.trim());
+8052:    Category: document.getElementById('tpl-category').value.trim(),
+8081:    Category: document.getElementById('tpl-category').value.trim(),
+8133:    category: tpl.Category || '',
+8283:  // SERVICE DEMANDEUR chart - basé sur le champ Category
+8287:    var service = String(t.Category || '').trim();
+8333:  var serviceChart = document.getElementById('chart-category');
+9165:    { key: 'category',    label: currentLang === 'fr' ? 'Catégorie' : 'Category' },
+9818:    html = '<div style="text-align:center;color:#94a3b8;padding:20px;">' + (currentLang === 'fr' ? 'Aucune catégorie' : 'No categories') + '</div>';
+9963:      { key: 'category', label: 'Catégorie', required: false },
+10074:    var taskFields = ['title', 'description', 'status', 'priority', 'assignee', 'group', 'startDate', 'dueDate', 'category', 'tag', 'recurrence', 'estimatedHours', 'createdAt', 'projectId'];
+10590:           (t.Category && t.Category.toLowerCase().indexOf(q) !== -1);
+10601:      html += '<div class="search-result-meta">' + (task.Category || '') + ' • ' + t('status' + task.Status.charAt(0).toUpperCase() + task.Status.slice(1)) + '</div>';
+10641:    var csv = 'Titre,Description,Statut,Priorité,Catégorie,Assigné,Date début,Échéance\n';
+10648:      csv += '"' + (t.Category || '') + '",';

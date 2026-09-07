@@ -487,23 +487,13 @@
     .settings-chips {
       display: flex;
       flex-wrap: wrap;
-      gap: 6px;
+      gap: 8px;
     }
     .settings-chip {
-      padding: 7px 9px;
-      border-radius: 6px;
-      font-size: 11px;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 12px;
       font-weight: 600;
-      border: 1px solid #e2e8f0;
-      background: #f8fafc;
-      color: #334155;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .settings-chip:hover {
-      background: #f1f5f9;
-      border-color: #cbd5e1;
     }
     body.dark-mode .settings-items {
       background: #1e293b;
@@ -4337,7 +4327,7 @@
           <div class="settings-section-header">
             <div>
               <h3 data-i18n="categories">SERVICE DEMANDEUR</h3>
-              <p data-i18n="categoriesSubtitle">Gérez les services demandeurs</p>
+              <p data-i18n="categoriesSubtitle">Gérez les catégories de tâches</p>
             </div>
             <button class="btn btn-primary btn-sm" onclick="openCategoriesModal()">+ <span data-i18n="addCategory">Ajouter</span></button>
           </div>
@@ -4389,6 +4379,47 @@
             <button class="btn btn-primary btn-sm" onclick="openAddAutomationRuleModal()">+ <span data-i18n="addRule">Ajouter une règle</span></button>
           </div>
           <div id="automation-rules-list" class="settings-content"></div>
+        </div>
+
+        <!-- NOTIFICATIONS & E-MAIL SECTION -->
+        <div class="settings-section" style="grid-column: 1 / -1;">
+          <div class="settings-section-header">
+            <div>
+              <h3>🔔 <span data-i18n="notifEmailTitle">Notifications & e-mail</span></h3>
+              <p data-i18n="notifEmailSubtitle">Prévenir les utilisateurs concernés et, en option, envoyer un e-mail via un webhook</p>
+            </div>
+          </div>
+          <div class="settings-content">
+            <div id="notify-concerned-toggle"></div>
+            <div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:10px;padding:14px 16px;margin-top:14px;font-size:13px;line-height:1.6;color:#334155;">
+              <div style="font-weight:800;color:#3730a3;margin-bottom:8px;">📧 Recevoir un e-mail à chaque notification (webhook Grist → n8n)</div>
+              <p style="margin-bottom:8px;">Le widget enregistre une ligne dans la table <strong>PM_Notifications</strong> pour chaque personne concernée par une tâche (création ou modification). Un <strong>webhook Grist</strong> posé sur cette table peut transformer chaque notification en <strong>e-mail</strong>, via <strong>n8n</strong> (gratuit / auto-hébergeable).</p>
+              <div style="margin-bottom:10px;padding:8px 12px;background:#dcfce7;border:1px solid #86efac;border-radius:8px;">⬇️ <strong>Le plus simple :</strong> téléchargez un workflow prêt à l'emploi et importez-le dans n8n (<em>Menu → Import from File</em>), selon votre messagerie :
+                <div style="margin-top:6px;display:flex;gap:14px;flex-wrap:wrap;">
+                  <a href="n8n-grist-pm-email-gmail.json" download style="font-weight:700;color:#15803d;">📧 Gmail</a>
+                  <a href="n8n-grist-pm-email-outlook.json" download style="font-weight:700;color:#15803d;">📧 Outlook / Microsoft 365</a>
+                  <a href="n8n-grist-pm-email.json" download style="font-weight:700;color:#15803d;">📧 SMTP (Zimbra &amp; autres)</a>
+                </div>
+              </div>
+              <p style="margin-bottom:10px;padding:8px 12px;background:#fef9c3;border:1px solid #fde047;border-radius:8px;">🏢 <strong>Pas de n8n ?</strong> Si votre organisation est sur <strong>Microsoft 365</strong>, suivez plutôt le guide <a href="POWER-AUTOMATE-GUIDE.md" target="_blank" rel="noopener" style="font-weight:700;color:#a16207;">Power Automate (pas-à-pas) ↗</a> — pas d'outil à installer.</p>
+              <p style="font-weight:700;margin-bottom:4px;">Comment utiliser le fichier .json dans n8n :</p>
+              <ol style="margin:0 0 8px 20px;padding:0;">
+                <li><strong>Importez</strong> le fichier : dans n8n, menu <strong>⋮ (en haut à droite)</strong> → <strong>Import from File</strong> → sélectionnez le .json téléchargé. Le Webhook, la normalisation et l'envoi d'e-mail apparaissent, déjà reliés et mappés sur <code>User_Email</code>, <code>Type</code>, <code>Message</code>.</li>
+                <li>Ouvrez le nœud <strong>« Envoyer l'e-mail (SMTP) »</strong> : associez vos <strong>identifiants SMTP</strong> et votre <em>adresse expéditeur</em>.</li>
+                <li><strong>Activez</strong> le workflow, puis copiez l'<em>URL de production</em> du nœud Webhook.</li>
+                <li><strong>Dans Grist</strong> : ouvre le document → menu <strong>⚙️ Paramètres du document</strong> → section <strong>Webhooks</strong> → <strong>Ajouter un webhook</strong> :
+                  <ul style="margin:4px 0 4px 18px;">
+                    <li>Table : <strong>PM_Notifications</strong></li>
+                    <li>Événement : <strong>Add</strong> (à chaque nouvelle notification)</li>
+                    <li>URL : colle l'URL du webhook n8n</li>
+                    <li>Colonnes (optionnel) : <em>User_Email, Message, Type, Task_Id</em></li>
+                  </ul>
+                </li>
+                <li><strong>Teste</strong> : crée ou modifie une tâche concernant un utilisateur → une ligne PM_Notifications est créée → Grist appelle n8n → l'e-mail part. ✅</li>
+              </ol>
+              <p style="font-size:12px;color:#64748b;margin-top:8px;">ℹ️ Les webhooks Grist nécessitent un plan/instance qui les autorise (sur Grist auto-hébergé : variable <code>GRIST_ALLOWED_WEBHOOK_DOMAINS</code>). Le widget ne peut pas envoyer d'e-mail directement (bac à sable navigateur) — c'est pour cela qu'on passe par un webhook.</p>
+            </div>
+          </div>
         </div>
 
         <!-- SECURITY SECTION -->
@@ -4558,64 +4589,13 @@
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label>SERVICE DEMANDEUR</label>
-              <select id="project-service-demandeur">
-                <option value="">--</option>
-                <option value="SGA">SGA</option>
-                <option value="SAJ">SAJ</option>
-                <option value="SAE">SAE</option>
-                <option value="SAAS">SAAS</option>
-                <option value="RH">RH</option>
-                <option value="Pôle1d44">Pôle1d44</option>
-                <option value="PACTE 1D PU">PACTE 1D PU</option>
-                <option value="PACTE 1D PR">PACTE 1D PR</option>
-                <option value="MED PREV">MED PREV</option>
-                <option value="EFIV442D">EFIV442D</option>
-                <option value="EFIV441D">EFIV441D</option>
-                <option value="DSI – ANT 44">DSI – ANT 44</option>
-                <option value="DSI">DSI</option>
-                <option value="DSDEN49 - DRH">DSDEN49 - DRH</option>
-                <option value="DSDEN49">DSDEN49</option>
-                <option value="DSDEN 85 / DRH">DSDEN 85 / DRH</option>
-                <option value="DSDEN 72 / PERS. ENS. 1DPUB">DSDEN 72 / PERS. ENS. 1DPUB</option>
-                <option value="DSDEN 53 / GRHAG">DSDEN 53 / GRHAG</option>
-                <option value="DSDEN 53 / CPDEPS">DSDEN 53 / CPDEPS</option>
-                <option value="DSDEN 49 – ASH">DSDEN 49 – ASH</option>
-                <option value="DRANE">DRANE</option>
-                <option value="DIPE">DIPE</option>
-                <option value="DIPATE">DIPATE</option>
-                <option value="DEC">DEC</option>
-                <option value="DBF2">DBF2</option>
-                <option value="DBF1">DBF1</option>
-                <option value="DAPSI">DAPSI</option>
-                <option value="DAPP / DRH49">DAPP / DRH49</option>
-                <option value="DAPP">DAPP</option>
-                <option value="DAEP">DAEP</option>
-                <option value="CDOEA - SDEI 85">CDOEA - SDEI 85</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label>Référent métier</label>
-              <input type="text" id="project-referent-metier" placeholder="Nom du référent métier...">
-            </div>
-
-            <div class="form-group">
               <label data-i18n="projectStatus">Statut</label>
               <select id="project-status">
-                <option value="A valider">A valider</option>
-                <option value="A l'étude">A l'étude</option>
-                <option value="En développement">En développement</option>
-                <option value="En test">En test</option>
-                <option value="Activé">Activé</option>
-                <option value="Fermé">Fermé</option>
-                <option value="Traitement Gest">Traitement Gest</option>
-                <option value="En révision">En révision</option>
-                <option value="Abandonné">Abandonné</option>
-                <option value="Archivé">Archivé</option>
+                <option value="active" data-i18n="projectActive">Actif</option>
+                <option value="completed" data-i18n="projectCompleted">Terminé</option>
+                <option value="archived" data-i18n="projectArchived">Archivé</option>
               </select>
             </div>
-
             <div class="form-group">
               <label data-i18n="projectLead">Responsable</label>
               <select id="project-lead"><option value="">--</option></select>

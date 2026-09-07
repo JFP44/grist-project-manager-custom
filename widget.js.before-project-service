@@ -878,7 +878,6 @@ var CUSTOM_FIELDS_TABLE = 'PM_CustomFields';
 var CUSTOM_FIELD_VALUES_TABLE = 'PM_CustomFieldValues';
 var CATEGORIES_TABLE = 'PM_Categories';
 var TAGS_TABLE = 'PM_Tags';
-var SERVICES_TABLE = 'PM_Services';
 var PROJECTS_TABLE = 'PM_Projects';
 var CONFIG_TABLE = 'PM_Config';
 var SETTINGS_TABLE = 'PM_Settings';
@@ -926,8 +925,6 @@ var columnMapping = {
     description: 'Description',
     color: 'Color',
     status: 'Status',
-    serviceDemandeur: 'SERVICE DEMANDEUR',
-    referentMetier: 'Référent métier',
     lead: 'Lead'
   },
   categories: {
@@ -950,8 +947,6 @@ var currentUserEmail = '';
 // SERVICE DEMANDEUR - LISTE
 // ============================================================
 
-var PM_SERVICES = [];
-var PM_STATUTS = [];
 var SERVICE_DEMANDEUR_OPTIONS = [
     "SGA",
     "SAJ",
@@ -988,9 +983,8 @@ var SERVICE_DEMANDEUR_OPTIONS = [
 
 function buildServiceDemandeurOptions(currentValue) {
   var html = '<option value="">--</option>';
-  var services = PM_SERVICES;
 
-  services.forEach(function(service) {
+  SERVICE_DEMANDEUR_OPTIONS.forEach(function(service) {
     var selected = service === (currentValue || '') ? ' selected' : '';
 
     html += '<option value="' +
@@ -1000,9 +994,12 @@ function buildServiceDemandeurOptions(currentValue) {
       '</option>';
   });
 
-  // Conserver une ancienne valeur si elle existe dans Grist
-  // mais n'est plus présente dans la liste actuelle.
-  if (currentValue && services.indexOf(currentValue) === -1) {
+  // Une ancienne valeur est conservée si elle existe
+  // déjà dans Grist mais n'est pas dans la nouvelle liste.
+  if (
+    currentValue &&
+    SERVICE_DEMANDEUR_OPTIONS.indexOf(currentValue) === -1
+  ) {
     html += '<option value="' +
       sanitize(currentValue) +
       '" selected>' +
@@ -1012,6 +1009,7 @@ function buildServiceDemandeurOptions(currentValue) {
 
   return html;
 }
+
 
 // =============================================================================
 // UTILS
@@ -1826,8 +1824,6 @@ async function ensureTables() {
     // when they have been remapped to existing user-owned tables.
     if (existingTables.indexOf(CONFIG_TABLE) !== -1) {
       await loadColumnMapping();
-  // Load project reference tables
-  
     }
 
     // Only auto-create a table when it (a) still has its default PM_* name
@@ -2012,18 +2008,7 @@ async function ensureTables() {
           { id: 'Name', type: 'Text' },
           { id: 'Description', type: 'Text' },
           { id: 'Color', type: 'Text' },
-          { id: 'Status', type: 'Choice', widgetOptions: JSON.stringify({ choices: [
-            'A valider',
-            "A l'étude",
-            'En développement',
-            'En test',
-            'Activé',
-            'Fermé',
-            'Traitement Gest',
-            'En révision',
-            'Abandonné',
-            'Archivé'
-          ] }) },
+          { id: 'Status', type: 'Choice', widgetOptions: JSON.stringify({ choices: ['active', 'archived', 'completed'] }) },
           { id: 'Start_Date', type: 'Date' },
           { id: 'End_Date', type: 'Date' },
           { id: 'Lead', type: 'Text' },
@@ -2111,7 +2096,6 @@ async function ensureTables() {
         ['project_description', PROJECTS_TABLE, 'Description', 'Description', false, 'Description'],
         ['project_color', PROJECTS_TABLE, 'Color', 'Couleur', false, 'Color'],
         ['project_status', PROJECTS_TABLE, 'Status', 'Statut', false, 'Status'],
-        ['project_service_demandeur', PROJECTS_TABLE, 'SERVICE DEMANDEUR', 'SERVICE DEMANDEUR', false, 'SERVICE DEMANDEUR'],
         // Categories mapping
         ['category_name', CATEGORIES_TABLE, 'Name', 'Nom', true, 'Name'],
         ['category_color', CATEGORIES_TABLE, 'Color', 'Couleur', false, 'Color'],
@@ -2299,8 +2283,6 @@ async function cleanupEmptyDraftTasks() {
 async function loadAllData() {
   // Load column mapping first
   await loadColumnMapping();
-  // Load project reference tables
-  
   
   try {
     var taskData = await grist.docApi.fetchTable(TASKS_TABLE);
@@ -2600,23 +2582,6 @@ async function loadAllData() {
   }
 
   try {
-    var serviceData = await grist.docApi.fetchTable(SERVICES_TABLE);
-    PM_SERVICES = [];
-    if (serviceData && serviceData.id) {
-      for (var i = 0; i < serviceData.id.length; i++) {
-        var service = String(serviceData.Service ? serviceData.Service[i] : '').trim();
-        if (service && PM_SERVICES.indexOf(service) === -1) {
-          PM_SERVICES.push(service);
-        }
-      }
-    }
-  } catch (e) {
-    PM_SERVICES = [];
-  }
-
-  console.log('PM_Services chargés:', PM_SERVICES);
-
-  try {
     var projData = await grist.docApi.fetchTable(PROJECTS_TABLE);
     projects = [];
     if (projData && projData.id) {
@@ -2624,8 +2589,6 @@ async function loadAllData() {
       var descCol = getColumnName('projects', 'description');
       var colorCol = getColumnName('projects', 'color');
       var statusCol = getColumnName('projects', 'status');
-      var serviceDemandeurCol = getColumnName('projects', 'serviceDemandeur');
-      var referentMetierCol = getColumnName('projects', 'referentMetier');
       
       for (var i = 0; i < projData.id.length; i++) {
         projects.push({
@@ -2633,10 +2596,7 @@ async function loadAllData() {
           Name: projData[nameCol] ? projData[nameCol][i] : '',
           Description: projData[descCol] ? projData[descCol][i] : '',
           Color: projData[colorCol] ? projData[colorCol][i] : '#6366f1',
-          Status: projData[statusCol] ? projData[statusCol][i] : 'A valider',
-
-          SERVICE_DEMANDEUR: serviceDemandeurCol && projData[serviceDemandeurCol] ? projData[serviceDemandeurCol][i] : '',
-          Referent_Metier: referentMetierCol && projData[referentMetierCol] ? projData[referentMetierCol][i] : '',
+          Status: projData[statusCol] ? projData[statusCol][i] : 'active',
           Start_Date: projData.Start_Date ? projData.Start_Date[i] : null,
           End_Date: projData.End_Date ? projData.End_Date[i] : null,
           Lead: projData.Lead ? projData.Lead[i] : '',
@@ -2749,22 +2709,16 @@ function renderProjectSelector() {
   });
   html += buildFilterCombo('person', currentLang === 'fr' ? '— Personne —' : '— Person —', personOptions, currentFilterAssignee, filterByAssignee);
 
-  // Filtre SERVICE DEMANDEUR
-  var serviceDemandeurOptions = PM_SERVICES.map(function(s) {
-    return { value: s, label: s };
-  });
-
-  html += buildFilterCombo(
-    'serviceDemandeur',
-    '— SERVICE DEMANDEUR —',
-    serviceDemandeurOptions,
-    currentFilterServiceDemandeur,
-    filterByServiceDemandeur
-  );
+  // Filtre Catégorie
+  var allServiceDemandeurs = [];
+  tasks.forEach(function(t) { if (t.SERVICE_DEMANDEUR && allServiceDemandeurs.indexOf(t.SERVICE_DEMANDEUR) === -1) allServiceDemandeurs.push(t.SERVICE_DEMANDEUR); });
+  allCategories.sort();
+  var catOptions = allCategories.map(function(c) { return { value: c, label: c }; });
+  html += buildFilterCombo('serviceDemandeur', '— SERVICE DEMANDEUR —', serviceDemandeurOptions, currentFilterServiceDemandeur, filterByServiceDemandeur);
 
   // Filtre Tag
   var tagOptions = tags.map(function(tag) { return { value: tag.Name, label: tag.Name }; });
-  html += buildFilterCombo('tag', '— Statut —', tagOptions, currentFilterTag, filterByTag);
+  html += buildFilterCombo('tag', '— Tag —', tagOptions, currentFilterTag, filterByTag);
 
   // Filtre Projet — combobox moderne avec recherche intégrée
   var selProj = currentProjectId ? projects.find(function(p) { return p.id === currentProjectId; }) : null;
@@ -8952,11 +8906,7 @@ function openProjectModal() {
   document.getElementById('project-name').value = '';
   document.getElementById('project-description').value = '';
   document.getElementById('project-color').value = '#6366f1';
-  document.getElementById('project-status').value = 'A valider';
-  var serviceEl = document.getElementById('project-service-demandeur');
-  if (serviceEl) serviceEl.value = '';
-  var referentMetierEl = document.getElementById('project-referent-metier');
-  if (referentMetierEl) referentMetierEl.value = '';
+  document.getElementById('project-status').value = 'active';
   populateProjectLead('');
   document.getElementById('project-form-title').textContent = t('addProject');
   var psearch = document.getElementById('project-search');
@@ -9036,11 +8986,7 @@ function editProject(projectId) {
   document.getElementById('project-name').value = proj.Name || '';
   document.getElementById('project-description').value = proj.Description || '';
   document.getElementById('project-color').value = proj.Color || '#6366f1';
-  document.getElementById('project-status').value = proj.Status || 'A valider';
-  var serviceEl = document.getElementById('project-service-demandeur');
-  if (serviceEl) serviceEl.value = proj.SERVICE_DEMANDEUR || '';
-  var referentMetierEl = document.getElementById('project-referent-metier');
-  if (referentMetierEl) referentMetierEl.value = proj.Referent_Metier || '';
+  document.getElementById('project-status').value = proj.Status || 'active';
   populateProjectLead(proj.Lead || '');
   document.getElementById('project-form-title').textContent = t('editProject');
 }
@@ -9051,10 +8997,6 @@ async function saveProject() {
   var description = document.getElementById('project-description').value.trim();
   var color = document.getElementById('project-color').value;
   var status = document.getElementById('project-status').value;
-  var serviceDemandeurEl = document.getElementById('project-service-demandeur');
-  var serviceDemandeur = serviceDemandeurEl ? serviceDemandeurEl.value : '';
-  var referentMetierEl = document.getElementById('project-referent-metier');
-  var referentMetier = referentMetierEl ? referentMetierEl.value.trim() : '';
   var leadEl = document.getElementById('project-lead');
   var lead = leadEl ? leadEl.value : '';
 
@@ -9069,8 +9011,6 @@ async function saveProject() {
     setField(record, 'projects', 'description', description);
     setField(record, 'projects', 'color', color);
     setField(record, 'projects', 'status', status);
-    setField(record, 'projects', 'serviceDemandeur', serviceDemandeur);
-    setField(record, 'projects', 'referentMetier', referentMetier);
     setField(record, 'projects', 'lead', lead);
     
     if (projectId) {
@@ -9097,11 +9037,7 @@ async function saveProject() {
     document.getElementById('project-name').value = '';
     document.getElementById('project-description').value = '';
     document.getElementById('project-color').value = '#6366f1';
-    document.getElementById('project-status').value = 'A valider';
-    var serviceElReset = document.getElementById('project-service-demandeur');
-    if (serviceElReset) serviceElReset.value = '';
-    var referentMetierElReset = document.getElementById('project-referent-metier');
-    if (referentMetierElReset) referentMetierElReset.value = '';
+    document.getElementById('project-status').value = 'active';
     populateProjectLead('');
     document.getElementById('project-form-title').textContent = t('addProject');
   } catch (e) {
@@ -9890,20 +9826,8 @@ function openProjectModalForEdit(projectId) {
   var proj = projects.find(function(p) { return p.id === projectId; });
   if (!proj) return;
 
-  var statusOptions = PM_STATUTS.length
-    ? PM_STATUTS.map(function(status) { return status.name; })
-    : [
-        'A valider',
-        "A l'étude",
-        'En développement',
-        'En test',
-        'Activé',
-        'Fermé',
-        'Traitement Gest',
-        'En révision',
-        'Abandonné',
-        'Archivé'
-      ];
+  var statusOptions = ['active', 'archived', 'completed'];
+  var statusLabels = { active: currentLang === 'fr' ? 'Actif' : 'Active', archived: currentLang === 'fr' ? 'Archivé' : 'Archived', completed: currentLang === 'fr' ? 'Terminé' : 'Completed' };
 
   var html = '<div class="modal-overlay" onclick="closeModal(event)">';
   html += '<div class="modal" style="max-width:420px;" onclick="event.stopPropagation()">';
@@ -9914,17 +9838,13 @@ function openProjectModalForEdit(projectId) {
   html += '<input type="text" id="inline-proj-name" class="form-input" value="' + sanitize(proj.Name || '') + '"></div>';
   html += '<div class="form-group"><label>' + (currentLang === 'fr' ? 'Description' : 'Description') + '</label>';
   html += '<textarea id="inline-proj-desc" class="form-input" rows="2">' + sanitize(proj.Description || '') + '</textarea></div>';
-  html += '<div class="form-group"><label>SERVICE DEMANDEUR</label>';
-  html += '<select id="inline-proj-service-demandeur" class="form-input">';
-  html += buildServiceDemandeurOptions(proj.SERVICE_DEMANDEUR || '');
-  html += '</select></div>';
   html += '<div style="display:flex;gap:12px;">';
   html += '<div class="form-group" style="flex:1"><label>' + (currentLang === 'fr' ? 'Couleur' : 'Color') + '</label>';
   html += '<input type="color" id="inline-proj-color" value="' + (proj.Color || '#6366f1') + '" style="width:48px;height:36px;border:none;cursor:pointer;"></div>';
   html += '<div class="form-group" style="flex:2"><label>' + (currentLang === 'fr' ? 'Statut' : 'Status') + '</label>';
   html += '<select id="inline-proj-status" class="form-input">';
   statusOptions.forEach(function(s) {
-    html += '<option value="' + s + '"' + (proj.Status === s ? ' selected' : '') + '>' + s + '</option>';
+    html += '<option value="' + s + '"' + (proj.Status === s ? ' selected' : '') + '>' + (statusLabels[s] || s) + '</option>';
   });
   html += '</select></div></div>';
   html += '</div>';
@@ -9942,9 +9862,8 @@ async function saveInlineProjectEdit(projectId) {
   var record = {};
   setField(record, 'projects', 'name', name);
   setField(record, 'projects', 'description', document.getElementById('inline-proj-desc').value || '');
-  setField(record, 'projects', 'serviceDemandeur', document.getElementById('inline-proj-service-demandeur').value || '');
   setField(record, 'projects', 'color', document.getElementById('inline-proj-color').value || '#6366f1');
-  setField(record, 'projects', 'status', document.getElementById('inline-proj-status').value || 'A valider');
+  setField(record, 'projects', 'status', document.getElementById('inline-proj-status').value || 'active');
   try {
     await grist.docApi.applyUserActions([['UpdateRecord', PROJECTS_TABLE, projectId, record]]);
     showToast((currentLang === 'fr' ? 'Projet modifié' : 'Project updated') + ' ✓', 'success');
@@ -9963,12 +9882,12 @@ function renderSettingsCategoriesList() {
   if (!container) return;
   
   var html = '';
-  if (PM_SERVICES.length === 0) {
-    html = '<div style="text-align:center;color:#94a3b8;padding:20px;">' + (currentLang === 'fr' ? 'Aucun service' : 'No services') + '</div>';
+  if (categories.length === 0) {
+    html = '<div style="text-align:center;color:#94a3b8;padding:20px;">' + (currentLang === 'fr' ? 'Aucune catégorie' : 'No categories') + '</div>';
   } else {
     html = '<div class="settings-chips">';
-    PM_SERVICES.forEach(function(service) {
-      html += '<span class="settings-chip">' + sanitize(service) + '</span>';
+    categories.forEach(function(cat) {
+      html += '<span class="settings-chip" style="background:' + (cat.Color || '#6366f1') + ';color:white;">' + sanitize(cat.Name) + '</span>';
     });
     html += '</div>';
   }
@@ -10244,7 +10163,7 @@ async function saveColumnMapping() {
     
     // Projects mappings
     var projectsTable = document.getElementById('mapping-projects-table').value;
-    var projectFields = ['name', 'description', 'color', 'status', 'serviceDemandeur'];
+    var projectFields = ['name', 'description', 'color', 'status'];
     for (var i = 0; i < projectFields.length; i++) {
       var field = projectFields[i];
       var el = document.getElementById('map-project-' + field);
