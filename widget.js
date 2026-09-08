@@ -869,6 +869,7 @@ var calendarDayOffset = 0; // Offset in days from today (day view)
 var TASKS_TABLE = 'PM_Tasks';
 var USERS_TABLE = 'PM_Users';
 var GROUPS_TABLE = 'PM_Groups';
+var ROLES_TABLE = 'PM_Roles';
 var TEMPLATES_TABLE = 'PM_Templates';
 var SUBTASKS_TABLE = 'PM_Subtasks';
 var DEPENDENCIES_TABLE = 'PM_Dependencies';
@@ -919,7 +920,8 @@ var columnMapping = {
     name: 'Name',
     email: 'Email',
     role: 'Role',
-    group: 'Group_Name'
+    group: 'Group_Name',
+    service: 'Service'
   },
   projects: {
     name: 'Name',
@@ -1852,13 +1854,103 @@ async function ensureTables() {
       ]);
     }
 
+    // Create PM_Roles table for role-based permissions
+    if (existingTables.indexOf(ROLES_TABLE) === -1) {
+      await grist.docApi.applyUserActions([
+        ['AddTable', ROLES_TABLE, [
+          { id: 'Name', type: 'Text' },
+          { id: 'Description', type: 'Text' },
+          { id: 'Projects_Access', type: 'Choice', widgetOptions: JSON.stringify({ choices: ['all', 'service', 'none'] }) },
+          { id: 'Data_Read', type: 'Bool' },
+          { id: 'Data_Write', type: 'Bool' },
+          { id: 'Data_Comment', type: 'Bool' },
+          { id: 'Structure_Access', type: 'Bool' },
+          { id: 'Is_System', type: 'Bool' }
+        ]]
+      ]);
+      existingTables.push(ROLES_TABLE);
+    }
+
+    // Ensure default system roles exist
+    if (existingTables.indexOf(ROLES_TABLE) !== -1) {
+      var roleData = await grist.docApi.fetchTable(ROLES_TABLE);
+      var existingRoleNames = [];
+
+      if (roleData && roleData.Name) {
+        existingRoleNames = roleData.Name.map(function(name) {
+          return String(name || '').trim();
+        });
+      }
+
+      var defaultRoles = [
+        {
+          Name: 'Administrateur',
+          Description: 'Accès à tous les projets, lecture et écriture des données, accès à la structure.',
+          Projects_Access: 'all',
+          Data_Read: true,
+          Data_Write: true,
+          Data_Comment: true,
+          Structure_Access: true,
+          Is_System: true
+        },
+        {
+          Name: 'Développeur',
+          Description: 'Accès à tous les projets, lecture et écriture des données, sans accès à la structure.',
+          Projects_Access: 'all',
+          Data_Read: true,
+          Data_Write: true,
+          Data_Comment: true,
+          Structure_Access: false,
+          Is_System: true
+        },
+        {
+          Name: 'Superviseur',
+          Description: 'Accès à tous les projets en lecture seule.',
+          Projects_Access: 'all',
+          Data_Read: true,
+          Data_Write: false,
+          Data_Comment: false,
+          Structure_Access: false,
+          Is_System: true
+        },
+        {
+          Name: 'Référent métier',
+          Description: 'Accès aux projets de son service, avec lecture et commentaire.',
+          Projects_Access: 'service',
+          Data_Read: true,
+          Data_Write: false,
+          Data_Comment: true,
+          Structure_Access: false,
+          Is_System: true
+        }
+      ];
+
+      var roleActions = [];
+
+      defaultRoles.forEach(function(role) {
+        if (existingRoleNames.indexOf(role.Name) === -1) {
+          roleActions.push([
+            'AddRecord',
+            ROLES_TABLE,
+            null,
+            role
+          ]);
+        }
+      });
+
+      if (roleActions.length > 0) {
+        await grist.docApi.applyUserActions(roleActions);
+      }
+    }
+
     if (USERS_TABLE === DEFAULT_USERS_TABLE && existingTables.indexOf(USERS_TABLE) === -1) {
       await grist.docApi.applyUserActions([
         ['AddTable', USERS_TABLE, [
           { id: 'Name', type: 'Text' },
           { id: 'Email', type: 'Text' },
           { id: 'Role', type: 'Choice', widgetOptions: JSON.stringify({ choices: ['admin', 'member', 'viewer'] }) },
-          { id: 'Group_Name', type: 'Text' }
+          { id: 'Group_Name', type: 'Text' },
+          { id: 'Service', type: 'Text' }
         ]]
       ]);
     }
@@ -2057,6 +2149,19 @@ async function ensureTables() {
       if (tplMig.length) { await grist.docApi.applyUserActions(tplMig); console.log('[GristPM] Colonnes templates enrichies'); }
     } catch (e) {
       console.log('[GristPM] Migration templates ignorée :', e.message);
+    }
+
+    // Migration Service sur PM_Users
+    try {
+      var userCols = Object.keys(await grist.docApi.fetchTable(USERS_TABLE));
+      if (userCols.indexOf('Service') === -1) {
+        await grist.docApi.applyUserActions([
+          ['AddColumn', USERS_TABLE, 'Service', { type: 'Text' }]
+        ]);
+        console.log('[GristPM] Colonne Service ajoutée à PM_Users');
+      }
+    } catch (e) {
+      console.log('[GristPM] Migration Service ignorée :', e.message);
     }
 
     // Migration CreatedBy / CreatedAt sur PM_Projects (créateur du projet)
@@ -2362,6 +2467,7 @@ async function loadAllData() {
       var emailCol = getColumnName('users', 'email');
       var roleCol = getColumnName('users', 'role');
       var groupCol = getColumnName('users', 'group');
+      var serviceCol = getColumnName('users', 'service');
       
       for (var i = 0; i < userData.id.length; i++) {
         users.push({
@@ -2369,7 +2475,8 @@ async function loadAllData() {
           Name: userData[nameCol] ? userData[nameCol][i] : '',
           Email: userData[emailCol] ? userData[emailCol][i] : '',
           Role: userData[roleCol] ? userData[roleCol][i] : 'member',
-          Group_Name: userData[groupCol] ? userData[groupCol][i] : ''
+          Group_Name: userData[groupCol] ? userData[groupCol][i] : '',
+          Service: userData[serviceCol] ? userData[serviceCol][i] : ''
         });
       }
     }
@@ -3098,15 +3205,42 @@ function myProjectIdSet() {
   var em = (currentUserEmail || '').toLowerCase().trim();
   var mine = myAssigneeValue();
   var set = {};
+
+  // Accès à tous les projets
+  if (canAccessAllProjects()) {
+    projects.forEach(function (p) {
+      set[p.id] = true;
+    });
+    return set;
+  }
+
+  // Accès aux projets du service de l'utilisateur
+  if (canAccessServiceProjects()) {
+    var user = getCurrentUser();
+    var myService = user ? String(user.Service || '').trim().toLowerCase() : '';
+
+    projects.forEach(function (p) {
+      var projectService = String(p.SERVICE_DEMANDEUR || '').trim().toLowerCase();
+
+      if (myService && projectService && projectService === myService) {
+        set[p.id] = true;
+      }
+    });
+  }
+
+  // Projets personnels : créés par moi, responsable du projet
+  // ou contenant une tâche qui m'est assignée.
   projects.forEach(function (p) {
     if (em && (p.CreatedBy || '').toLowerCase().trim() === em) set[p.id] = true;
-    if (mine && (p.Lead || '') === mine) set[p.id] = true; // responsable du projet
+    if (mine && (p.Lead || '') === mine) set[p.id] = true;
   });
+
   if (mine) tasks.forEach(function (tk) {
     if (!tk.Project_Id) return;
     var list = (tk.Assignee || '').split(',').map(function (s) { return s.trim(); });
     if (list.indexOf(mine) !== -1) set[tk.Project_Id] = true;
   });
+
   return set;
 }
 // Bascule "Afficher seulement mes projets"
@@ -5732,106 +5866,357 @@ async function deleteCategory(categoryId) {
 
 async function getRoleChoicesFromGrist() {
   var roleSet = {};
-  var hasGristChoices = false;
 
-  // Try to get choices defined in Grist column metadata (source of truth)
   try {
-    var roleColName = getColumnName('users', 'role');
-    var tablesData = await grist.docApi.fetchTable('_grist_Tables');
-    var columnsData = await grist.docApi.fetchTable('_grist_Tables_column');
+    var roleData = await grist.docApi.fetchTable(ROLES_TABLE);
 
-    var tableRowId = null;
-    if (tablesData && tablesData.id && tablesData.tableId) {
-      for (var i = 0; i < tablesData.id.length; i++) {
-        if (tablesData.tableId[i] === USERS_TABLE) { tableRowId = tablesData.id[i]; break; }
-      }
-    }
-
-    if (tableRowId !== null && columnsData && columnsData.id) {
-      for (var j = 0; j < columnsData.id.length; j++) {
-        if (columnsData.parentId[j] === tableRowId && columnsData.colId[j] === roleColName) {
-          var wo = columnsData.widgetOptions[j];
-          if (wo) {
-            try {
-              var opts = JSON.parse(wo);
-              if (opts.choices && Array.isArray(opts.choices) && opts.choices.length > 0) {
-                opts.choices.forEach(function(c) { roleSet[c] = true; });
-                hasGristChoices = true;
-              }
-            } catch (e) { /* ignore parse errors */ }
-          }
-          break;
-        }
-      }
+    if (roleData && roleData.Name) {
+      roleData.Name.forEach(function(name) {
+        var roleName = String(name || '').trim();
+        if (roleName) roleSet[roleName] = true;
+      });
     }
   } catch (e) {
-    console.log('Could not fetch role choices from Grist metadata:', e);
+    console.error('[GristPM] Impossible de charger PM_Roles:', e);
   }
 
-  // Add defaults only if no choices are defined yet (first-time setup)
-  if (!hasGristChoices) {
-    ['admin', 'member', 'viewer'].forEach(function(r) { roleSet[r] = true; });
-  }
-
-  // Always include roles currently assigned to users (so no user is orphaned)
-  users.forEach(function(u) { getUserRoles(u).forEach(function(r) { if (r) roleSet[r] = true; }); });
+  // Toujours conserver les rôles actuellement affectés à des utilisateurs
+  users.forEach(function(u) {
+    getUserRoles(u).forEach(function(r) {
+      if (r) roleSet[r] = true;
+    });
+  });
 
   return Object.keys(roleSet).sort();
 }
 
 // In-memory state for the manage roles modal
-var _manageRolesState = { choices: [] };
+var _manageRolesState = { roles: [] };
+
+// ============================================================
+// EFFECTIVE USER PERMISSIONS
+// USERS.Role -> PM_Roles -> effective rights
+// ============================================================
+
+var _effectivePermissions = {
+  Projects_Access: 'none',
+  Data_Read: false,
+  Data_Write: false,
+  Data_Comment: false,
+  Structure_Access: false
+};
+
+function getCurrentUser() {
+  if (!currentUserEmail) return null;
+
+  var email = currentUserEmail.toLowerCase().trim();
+
+  return users.find(function(u) {
+    return (u.Email || '').toLowerCase().trim() === email;
+  }) || null;
+}
+
+function getCurrentUserRoleNames() {
+  var user = getCurrentUser();
+  return user ? getUserRoles(user) : [];
+}
+
+async function loadEffectivePermissions() {
+  // Reset permissions
+  _effectivePermissions = {
+    Projects_Access: 'none',
+    Data_Read: false,
+    Data_Write: false,
+    Data_Comment: false,
+    Structure_Access: false
+  };
+
+  var user = getCurrentUser();
+
+  // Owner keeps full application access
+  if (isOwner) {
+    _effectivePermissions.Projects_Access = 'all';
+    _effectivePermissions.Data_Read = true;
+    _effectivePermissions.Data_Write = true;
+    _effectivePermissions.Data_Comment = true;
+    _effectivePermissions.Structure_Access = true;
+    return;
+  }
+
+  if (!user) {
+    console.warn('[GristPM] Utilisateur courant introuvable dans USERS:', currentUserEmail);
+    return;
+  }
+
+  var roleNames = getUserRoles(user);
+  if (!roleNames.length) {
+    console.warn('[GristPM] Aucun rôle attribué à:', user.Email);
+    return;
+  }
+
+  try {
+    var roleData = await grist.docApi.fetchTable(ROLES_TABLE);
+
+    if (!roleData || !roleData.id || !roleData.Name) return;
+
+    for (var i = 0; i < roleData.id.length; i++) {
+      var roleName = String(roleData.Name[i] || '').trim();
+
+      if (roleNames.indexOf(roleName) === -1) continue;
+
+      var projectAccess = roleData.Projects_Access
+        ? (roleData.Projects_Access[i] || 'none')
+        : 'none';
+
+      // Keep the most permissive project access:
+      // none < service < all
+      var accessRank = {
+        none: 0,
+        service: 1,
+        all: 2
+      };
+
+      if ((accessRank[projectAccess] || 0) >
+          (accessRank[_effectivePermissions.Projects_Access] || 0)) {
+        _effectivePermissions.Projects_Access = projectAccess;
+      }
+
+      // Multiple roles: any role granting a right grants it.
+      if (roleData.Data_Read && roleData.Data_Read[i]) {
+        _effectivePermissions.Data_Read = true;
+      }
+
+      if (roleData.Data_Write && roleData.Data_Write[i]) {
+        _effectivePermissions.Data_Write = true;
+      }
+
+      if (roleData.Data_Comment && roleData.Data_Comment[i]) {
+        _effectivePermissions.Data_Comment = true;
+      }
+
+      if (roleData.Structure_Access && roleData.Structure_Access[i]) {
+        _effectivePermissions.Structure_Access = true;
+      }
+    }
+
+    console.log(
+      '[GristPM] Droits effectifs:',
+      user.Email,
+      roleNames,
+      _effectivePermissions
+    );
+
+  } catch (e) {
+    console.error('[GristPM] Impossible de charger les droits effectifs:', e);
+  }
+}
+
+function hasPermission(permission) {
+  return !!_effectivePermissions[permission];
+}
+
+function canReadData() {
+  return hasPermission('Data_Read');
+}
+
+function canWriteData() {
+  return hasPermission('Data_Write');
+}
+
+function canComment() {
+  return hasPermission('Data_Comment');
+}
+
+function canAccessStructure() {
+  return hasPermission('Structure_Access');
+}
+
+function canAccessAllProjects() {
+  return _effectivePermissions.Projects_Access === 'all';
+}
+
+function canAccessServiceProjects() {
+  return _effectivePermissions.Projects_Access === 'service';
+}
+
 
 async function openManageRolesModal() {
-  var choices = await getRoleChoicesFromGrist();
-  _manageRolesState.choices = choices.slice();
-  renderManageRolesModal();
+  try {
+    var roleData = await grist.docApi.fetchTable(ROLES_TABLE);
+    var roles = [];
+
+    if (roleData && roleData.id && roleData.Name) {
+      for (var i = 0; i < roleData.id.length; i++) {
+        roles.push({
+          id: roleData.id[i],
+          Name: roleData.Name[i] || '',
+          Description: roleData.Description ? (roleData.Description[i] || '') : '',
+          Projects_Access: roleData.Projects_Access ? (roleData.Projects_Access[i] || 'none') : 'none',
+          Data_Read: roleData.Data_Read ? !!roleData.Data_Read[i] : false,
+          Data_Write: roleData.Data_Write ? !!roleData.Data_Write[i] : false,
+          Data_Comment: roleData.Data_Comment ? !!roleData.Data_Comment[i] : false,
+          Structure_Access: roleData.Structure_Access ? !!roleData.Structure_Access[i] : false,
+          Is_System: roleData.Is_System ? !!roleData.Is_System[i] : false
+        });
+      }
+    }
+
+    _manageRolesState.roles = roles;
+    renderManageRolesModal();
+  } catch (e) {
+    console.error('[GristPM] Impossible de charger PM_Roles:', e);
+    showToast('Erreur : ' + e.message, 'error');
+  }
 }
 
 function renderManageRolesModal() {
-  var choices = _manageRolesState.choices;
-  // Build usage map: role -> count of users (ChoiceList-safe)
+  var roles = _manageRolesState.roles || [];
+
+  // Build usage map: role -> count of users
   var usage = {};
-  users.forEach(function(u) { getUserRoles(u).forEach(function(r) { if (r) usage[r] = (usage[r] || 0) + 1; }); });
+  users.forEach(function(u) {
+    getUserRoles(u).forEach(function(r) {
+      if (r) usage[r] = (usage[r] || 0) + 1;
+    });
+  });
+
+  function projectAccessLabel(value) {
+    if (value === 'all') return currentLang === 'fr' ? 'Tous les projets' : 'All projects';
+    if (value === 'service') return currentLang === 'fr' ? 'Son service' : 'Own service';
+    return currentLang === 'fr' ? 'Aucun' : 'None';
+  }
+
+  function permissionBadge(label, enabled) {
+    return '<span style="display:inline-block;padding:3px 8px;margin:2px;' +
+      'border-radius:12px;font-size:11px;font-weight:600;' +
+      'background:' + (enabled ? '#dcfce7' : '#f1f5f9') + ';' +
+      'color:' + (enabled ? '#166534' : '#64748b') + ';">' +
+      (enabled ? '✓ ' : '✕ ') + sanitize(label) +
+      '</span>';
+  }
 
   var html = '<div class="modal-overlay" onclick="closeModal(event)">';
-  html += '<div class="modal" onclick="event.stopPropagation()">';
-  html += '<div class="modal-header"><h3>' + t('manageRolesTitle') + '</h3><button class="modal-close" onclick="closeModalForce()">✕</button></div>';
-  html += '<div class="modal-body">';
-  html += '<p style="color:#64748b;font-size:13px;margin:0 0 12px 0;">' + t('manageRolesSubtitle') + '</p>';
+  html += '<div class="modal" onclick="event.stopPropagation()" style="max-width:900px;">';
 
-  // Existing roles list
-  html += '<div class="settings-items">';
-  if (choices.length === 0) {
-    html += '<div style="text-align:center;color:#94a3b8;padding:20px;">--</div>';
+  html += '<div class="modal-header">';
+  html += '<h3>' + t('manageRolesTitle') + '</h3>';
+  html += '<button class="modal-close" onclick="closeModalForce()">✕</button>';
+  html += '</div>';
+
+  html += '<div class="modal-body">';
+  html += '<p style="color:#64748b;font-size:13px;margin:0 0 16px 0;">';
+  html += t('manageRolesSubtitle');
+  html += '</p>';
+
+  if (roles.length === 0) {
+    html += '<div style="text-align:center;color:#94a3b8;padding:30px;">--</div>';
   } else {
-    for (var i = 0; i < choices.length; i++) {
-      var r = choices[i];
-      var count = usage[r] || 0;
-      html += '<div class="settings-item">';
-      html += '<div class="settings-item-info">';
-      html += '<strong>' + sanitize(roleLabel(r)) + '</strong>';
-      html += '<span class="settings-item-meta">' + count + ' ' + (currentLang === 'fr' ? 'utilisateur(s)' : 'user(s)') + '</span>';
+    html += '<div class="settings-items">';
+
+    for (var i = 0; i < roles.length; i++) {
+      var r = roles[i];
+      var count = usage[r.Name] || 0;
+
+      html += '<div class="settings-item" style="align-items:flex-start;">';
+
+      html += '<div class="settings-item-info" style="flex:1;">';
+      html += '<div style="display:flex;align-items:center;gap:8px;">';
+      html += '<strong>' + sanitize(r.Name) + '</strong>';
+
+      if (r.Is_System) {
+        html += '<span style="font-size:11px;color:#64748b;">🔒 ' +
+          (currentLang === 'fr' ? 'Système' : 'System') +
+          '</span>';
+      }
+
       html += '</div>';
+
+      if (r.Description) {
+        html += '<span class="settings-item-meta">' +
+          sanitize(r.Description) +
+          '</span>';
+      }
+
+      html += '<span class="settings-item-meta">' +
+        count + ' ' +
+        (currentLang === 'fr' ? 'utilisateur(s)' : 'user(s)') +
+        '</span>';
+
+      html += '<div style="margin-top:7px;">';
+
+      html += '<strong style="font-size:11px;color:#475569;">' +
+        (currentLang === 'fr' ? 'Projets :' : 'Projects:') +
+        '</strong> ';
+      html += '<span style="font-size:11px;">' +
+        sanitize(projectAccessLabel(r.Projects_Access)) +
+        '</span>';
+
+      html += '<div style="margin-top:3px;">';
+      html += permissionBadge(
+        currentLang === 'fr' ? 'Lecture' : 'Read',
+        r.Data_Read
+      );
+      html += permissionBadge(
+        currentLang === 'fr' ? 'Écriture' : 'Write',
+        r.Data_Write
+      );
+      html += permissionBadge(
+        currentLang === 'fr' ? 'Commentaire' : 'Comment',
+        r.Data_Comment
+      );
+      html += permissionBadge(
+        currentLang === 'fr' ? 'Structure' : 'Structure',
+        r.Structure_Access
+      );
+      html += '</div>';
+
+      html += '</div>';
+      html += '</div>';
+
       html += '<div class="settings-item-actions">';
-      html += '<button class="btn-icon" onclick="removeRoleChoice(' + i + ')" title="' + t('confirmDeleteRole') + '">🗑️</button>';
+
+      if (r.Is_System) {
+        html += '<span style="font-size:12px;color:#94a3b8;" title="' +
+          (currentLang === 'fr' ? 'Rôle système' : 'System role') +
+          '">🔒</span>';
+      } else {
+        html += '<button class="btn-icon" onclick="editRole(' + r.id + ')" title="' +
+          (currentLang === 'fr' ? 'Modifier' : 'Edit') +
+          '">✏️</button>';
+
+        html += '<button class="btn-icon" onclick="removeRoleChoice(' + i + ')" title="' +
+          t('confirmDeleteRole') +
+          '">🗑️</button>';
+      }
+
       html += '</div>';
       html += '</div>';
     }
+
+    html += '</div>';
   }
+
+  html += '<div style="display:flex;gap:8px;margin-top:18px;">';
+  html += '<input type="text" id="new-role-name" placeholder="' +
+    t('newRolePlaceholder') +
+    '" style="flex:1;" />';
+  html += '<button class="btn btn-primary btn-sm" onclick="addRoleChoice()">+ ' +
+    t('addRole') +
+    '</button>';
   html += '</div>';
 
-  // Add new role
-  html += '<div style="display:flex;gap:8px;margin-top:16px;">';
-  html += '<input type="text" id="new-role-name" placeholder="' + t('newRolePlaceholder') + '" style="flex:1;" onkeydown="if(event.key===\'Enter\'){addRoleChoice();}" />';
-  html += '<button class="btn btn-primary btn-sm" onclick="addRoleChoice()">+ ' + t('addRole') + '</button>';
   html += '</div>';
 
-  html += '</div>';
   html += '<div class="modal-footer">';
-  html += '<button class="btn btn-secondary" onclick="closeModalForce()">' + t('cancel') + '</button>';
-  html += '<button class="btn btn-primary" onclick="saveRoleChoices()">' + t('save') + '</button>';
-  html += '</div></div></div>';
+  html += '<button class="btn btn-secondary" onclick="closeModalForce()">' +
+    t('cancel') +
+    '</button>';
+  html += '<button class="btn btn-primary" onclick="saveRoleChoices()">' +
+    t('save') +
+    '</button>';
+  html += '</div>';
+
+  html += '</div></div>';
 
   document.getElementById('modal-container').innerHTML = html;
 }
@@ -5839,69 +6224,341 @@ function renderManageRolesModal() {
 function addRoleChoice() {
   var input = document.getElementById('new-role-name');
   var name = (input.value || '').trim();
+
   if (!name) return;
-  if (_manageRolesState.choices.indexOf(name) !== -1) {
-    showToast(currentLang === 'fr' ? 'Ce rôle existe déjà' : 'Role already exists', 'error');
+
+  var roles = _manageRolesState.roles || [];
+
+  var exists = roles.some(function(r) {
+    return String(r.Name || '').trim().toLowerCase() === name.toLowerCase();
+  });
+
+  if (exists) {
+    showToast(
+      currentLang === 'fr' ? 'Ce rôle existe déjà' : 'Role already exists',
+      'error'
+    );
     return;
   }
-  _manageRolesState.choices.push(name);
+
+  roles.push({
+    id: null,
+    Name: name,
+    Description: '',
+    Projects_Access: 'none',
+    Data_Read: false,
+    Data_Write: false,
+    Data_Comment: false,
+    Structure_Access: false,
+    Is_System: false,
+    _new: true
+  });
+
+  _manageRolesState.roles = roles;
+  renderManageRolesModal();
+}
+
+async function editRole(roleId) {
+  var roles = _manageRolesState.roles || [];
+  var role = roles.find(function(r) {
+    return String(r.id) === String(roleId);
+  });
+
+  if (!role) return;
+
+  if (role.Is_System) {
+    showToast(
+      currentLang === 'fr'
+        ? 'Les rôles système ne peuvent pas être modifiés'
+        : 'System roles cannot be modified',
+      'error'
+    );
+    return;
+  }
+
+  var projectOptions = '';
+  projectOptions += '<option value="all"' + (role.Projects_Access === 'all' ? ' selected' : '') + '>' +
+    (currentLang === 'fr' ? 'Tous les projets' : 'All projects') +
+    '</option>';
+  projectOptions += '<option value="service"' + (role.Projects_Access === 'service' ? ' selected' : '') + '>' +
+    (currentLang === 'fr' ? 'Son service' : 'Own service') +
+    '</option>';
+  projectOptions += '<option value="none"' + (role.Projects_Access === 'none' ? ' selected' : '') + '>' +
+    (currentLang === 'fr' ? 'Aucun projet' : 'No projects') +
+    '</option>';
+
+  var html = '<div class="modal-overlay" onclick="closeModal(event)">';
+  html += '<div class="modal" onclick="event.stopPropagation()" style="max-width:650px;">';
+
+  html += '<div class="modal-header">';
+  html += '<h3>' + (currentLang === 'fr' ? 'Modifier le rôle' : 'Edit role') + '</h3>';
+  html += '<button class="modal-close" onclick="closeModalForce()">✕</button>';
+  html += '</div>';
+
+  html += '<div class="modal-body">';
+
+  html += '<div class="form-group">';
+  html += '<label>' + (currentLang === 'fr' ? 'Nom du rôle' : 'Role name') + '</label>';
+  html += '<input type="text" id="role-edit-name" value="' + sanitize(role.Name) + '" />';
+  html += '</div>';
+
+  html += '<div class="form-group">';
+  html += '<label>' + (currentLang === 'fr' ? 'Description' : 'Description') + '</label>';
+  html += '<textarea id="role-edit-description" rows="3">' +
+    sanitize(role.Description || '') +
+    '</textarea>';
+  html += '</div>';
+
+  html += '<div class="form-group">';
+  html += '<label>' + (currentLang === 'fr' ? 'Accès aux projets' : 'Project access') + '</label>';
+  html += '<select id="role-edit-projects">' + projectOptions + '</select>';
+  html += '</div>';
+
+  html += '<div class="form-group">';
+  html += '<label>' + (currentLang === 'fr' ? 'Droits sur les données' : 'Data permissions') + '</label>';
+
+  html += '<label style="display:block;margin:8px 0;">';
+  html += '<input type="checkbox" id="role-edit-read"' + (role.Data_Read ? ' checked' : '') + '> ';
+  html += (currentLang === 'fr' ? 'Lecture' : 'Read');
+  html += '</label>';
+
+  html += '<label style="display:block;margin:8px 0;">';
+  html += '<input type="checkbox" id="role-edit-write"' + (role.Data_Write ? ' checked' : '') + '> ';
+  html += (currentLang === 'fr' ? 'Écriture' : 'Write');
+  html += '</label>';
+
+  html += '<label style="display:block;margin:8px 0;">';
+  html += '<input type="checkbox" id="role-edit-comment"' + (role.Data_Comment ? ' checked' : '') + '> ';
+  html += (currentLang === 'fr' ? 'Commentaire' : 'Comment');
+  html += '</label>';
+
+  html += '</div>';
+
+  html += '<div class="form-group">';
+  html += '<label style="display:block;">';
+  html += '<input type="checkbox" id="role-edit-structure"' + (role.Structure_Access ? ' checked' : '') + '> ';
+  html += (currentLang === 'fr' ? 'Accès à la structure' : 'Structure access');
+  html += '</label>';
+  html += '</div>';
+
+  html += '</div>';
+
+  html += '<div class="modal-footer">';
+  html += '<button class="btn btn-secondary" onclick="closeModalForce()">' +
+    t('cancel') +
+    '</button>';
+
+  html += '<button class="btn btn-primary" onclick="saveEditedRole(' + role.id + ')">' +
+    t('save') +
+    '</button>';
+
+  html += '</div>';
+
+  html += '</div></div>';
+
+  document.getElementById('modal-container').innerHTML = html;
+}
+
+async function saveEditedRole(roleId) {
+  var roles = _manageRolesState.roles || [];
+  var role = roles.find(function(r) {
+    return String(r.id) === String(roleId);
+  });
+
+  if (!role || role.Is_System) return;
+
+  var name = (document.getElementById('role-edit-name').value || '').trim();
+  var description = document.getElementById('role-edit-description').value || '';
+  var projects = document.getElementById('role-edit-projects').value;
+
+  if (!name) {
+    showToast(
+      currentLang === 'fr' ? 'Le nom du rôle est obligatoire' : 'Role name is required',
+      'error'
+    );
+    return;
+  }
+
+  var duplicate = roles.some(function(r) {
+    return r !== role &&
+      String(r.Name || '').trim().toLowerCase() === name.toLowerCase();
+  });
+
+  if (duplicate) {
+    showToast(
+      currentLang === 'fr' ? 'Ce rôle existe déjà' : 'Role already exists',
+      'error'
+    );
+    return;
+  }
+
+  role.Name = name;
+  role.Description = description;
+  role.Projects_Access = projects;
+  role.Data_Read = document.getElementById('role-edit-read').checked;
+  role.Data_Write = document.getElementById('role-edit-write').checked;
+  role.Data_Comment = document.getElementById('role-edit-comment').checked;
+  role.Structure_Access = document.getElementById('role-edit-structure').checked;
+
+  _manageRolesState.roles = roles;
+
+  closeModalForce();
   renderManageRolesModal();
 }
 
 function removeRoleChoice(index) {
-  var role = _manageRolesState.choices[index];
-  // Check if used
-  var inUse = users.some(function(u) { return userMatchesRole(u, role); });
+  var roles = _manageRolesState.roles || [];
+  var role = roles[index];
+
+  if (!role) return;
+
+  // System roles cannot be deleted.
+  if (role.Is_System) {
+    showToast(
+      currentLang === 'fr'
+        ? 'Les rôles système ne peuvent pas être supprimés'
+        : 'System roles cannot be deleted',
+      'error'
+    );
+    return;
+  }
+
+  // Check whether the role is currently assigned to users.
+  var inUse = users.some(function(u) {
+    return userMatchesRole(u, role.Name);
+  });
+
   if (inUse) {
-    if (!confirm(t('cannotDeleteUsedRole') + '. ' + (currentLang === 'fr' ? 'Continuer ?' : 'Continue?'))) {
+    if (!confirm(
+      t('cannotDeleteUsedRole') + '. ' +
+      (currentLang === 'fr'
+        ? 'Voulez-vous vraiment continuer ?'
+        : 'Do you really want to continue?')
+    )) {
       return;
     }
   } else if (!confirm(t('confirmDeleteRole'))) {
     return;
   }
-  _manageRolesState.choices.splice(index, 1);
+
+  roles.splice(index, 1);
+  _manageRolesState.roles = roles;
   renderManageRolesModal();
 }
 
 async function saveRoleChoices() {
   try {
-    var roleColName = getColumnName('users', 'role');
-    var tablesData = await grist.docApi.fetchTable('_grist_Tables');
-    var columnsData = await grist.docApi.fetchTable('_grist_Tables_column');
+    var roles = _manageRolesState.roles || [];
+    var roleData = await grist.docApi.fetchTable(ROLES_TABLE);
 
-    // Find table row id
-    var tableRowId = null;
-    for (var i = 0; i < tablesData.id.length; i++) {
-      if (tablesData.tableId[i] === USERS_TABLE) { tableRowId = tablesData.id[i]; break; }
-    }
-    if (tableRowId === null) throw new Error('Table not found');
+    var existingById = {};
+    var existingSystemNames = {};
 
-    // Find Role column and existing widgetOptions
-    var existingOpts = {};
-    for (var j = 0; j < columnsData.id.length; j++) {
-      if (columnsData.parentId[j] === tableRowId && columnsData.colId[j] === roleColName) {
-        var wo = columnsData.widgetOptions[j];
-        if (wo) {
-          try { existingOpts = JSON.parse(wo); } catch (e) {}
+    if (roleData && roleData.id) {
+      for (var i = 0; i < roleData.id.length; i++) {
+        var existingRole = {
+          id: roleData.id[i],
+          Name: roleData.Name ? roleData.Name[i] : '',
+          Is_System: roleData.Is_System ? !!roleData.Is_System[i] : false
+        };
+
+        existingById[existingRole.id] = existingRole;
+
+        if (existingRole.Is_System) {
+          existingSystemNames[String(existingRole.Name || '').trim()] = true;
         }
-        break;
       }
     }
 
-    // Update choices
-    existingOpts.choices = _manageRolesState.choices;
-    if (!existingOpts.widget) existingOpts.widget = 'TextBox';
+    var actions = [];
+    var keptIds = {};
 
-    await grist.docApi.applyUserActions([
-      ['ModifyColumn', USERS_TABLE, roleColName, { widgetOptions: JSON.stringify(existingOpts) }]
-    ]);
+    for (var j = 0; j < roles.length; j++) {
+      var role = roles[j];
+
+      if (!role || !String(role.Name || '').trim()) {
+        continue;
+      }
+
+      var name = String(role.Name).trim();
+
+      // Never allow a custom role to use the name of a system role.
+      if (!role.Is_System && existingSystemNames[name]) {
+        throw new Error(
+          (currentLang === 'fr'
+            ? 'Le nom "' + name + '" est réservé à un rôle système.'
+            : 'The name "' + name + '" is reserved for a system role.')
+        );
+      }
+
+      var fields = {
+        Name: name,
+        Description: role.Description || '',
+        Projects_Access: role.Projects_Access || 'none',
+        Data_Read: !!role.Data_Read,
+        Data_Write: !!role.Data_Write,
+        Data_Comment: !!role.Data_Comment,
+        Structure_Access: !!role.Structure_Access,
+        Is_System: !!role.Is_System
+      };
+
+      // Existing record: update it.
+      if (role.id !== null && role.id !== undefined && existingById[role.id]) {
+        keptIds[role.id] = true;
+
+        // System roles are protected: don't modify their permissions/name.
+        if (role.Is_System) {
+          continue;
+        }
+
+        actions.push([
+          'UpdateRecord',
+          ROLES_TABLE,
+          role.id,
+          fields
+        ]);
+      } else {
+        // New custom role.
+        fields.Is_System = false;
+
+        actions.push([
+          'AddRecord',
+          ROLES_TABLE,
+          null,
+          fields
+        ]);
+      }
+    }
+
+    // Delete custom roles that were removed from the modal.
+    if (roleData && roleData.id) {
+      for (var k = 0; k < roleData.id.length; k++) {
+        var existingId = roleData.id[k];
+        var isSystem = roleData.Is_System ? !!roleData.Is_System[k] : false;
+
+        if (!isSystem && !keptIds[existingId]) {
+          actions.push([
+            'RemoveRecord',
+            ROLES_TABLE,
+            existingId
+          ]);
+        }
+      }
+    }
+
+    if (actions.length > 0) {
+      await grist.docApi.applyUserActions(actions);
+    }
+
     showToast(t('rolesUpdated'), 'success');
     closeModalForce();
+
   } catch (e) {
-    console.error('Error saving roles:', e);
+    console.error('[GristPM] Error saving roles:', e);
     showToast('Error: ' + e.message, 'error');
   }
 }
+
 
 async function openEditUserModal(userId) {
   var user = users.find(function(u) { return u.id === userId; });
@@ -5921,6 +6578,7 @@ async function openEditUserModal(userId) {
   html += '<div class="modal-body">';
   html += '<div class="form-group"><label>' + t('fieldName') + '</label><input type="text" id="user-name" value="' + sanitize(user.Name) + '" /></div>';
   html += '<div class="form-group"><label>' + t('fieldEmail') + '</label><input type="email" id="user-email" value="' + sanitize(user.Email) + '" /></div>';
+  html += '<div class="form-group"><label>Service</label><input type="text" id="user-service" value="' + sanitize(user.Service || '') + '" /></div>';
   html += '<div class="form-row">';
   html += '<div class="form-group"><label>' + t('fieldRole') + '</label><select id="user-role">';
   // Add current role first if it's not in the choices list
@@ -5972,6 +6630,7 @@ async function updateUser(userId) {
   record[getColumnName('users', 'email')] = document.getElementById('user-email').value.trim();
   record[getColumnName('users', 'role')] = document.getElementById('user-role').value;
   record[getColumnName('users', 'group')] = document.getElementById('user-group').value;
+  record[getColumnName('users', 'service')] = document.getElementById('user-service').value.trim();
 
   try {
     await grist.docApi.applyUserActions([
@@ -6020,6 +6679,7 @@ async function openNewUserModal() {
   html += '<div class="modal-body">';
   html += '<div class="form-group"><label>' + t('fieldName') + '</label><input type="text" id="user-name" /></div>';
   html += '<div class="form-group"><label>' + t('fieldEmail') + '</label><input type="email" id="user-email" /></div>';
+  html += '<div class="form-group"><label>Service</label><input type="text" id="user-service" /></div>';
   html += '<div class="form-row">';
   html += '<div class="form-group"><label>' + t('fieldRole') + '</label><select id="user-role">';
   for (var i = 0; i < roleChoices.length; i++) {
@@ -6064,6 +6724,7 @@ async function createUser() {
   record[getColumnName('users', 'email')] = document.getElementById('user-email').value.trim();
   record[getColumnName('users', 'role')] = document.getElementById('user-role').value;
   record[getColumnName('users', 'group')] = document.getElementById('user-group').value;
+  record[getColumnName('users', 'service')] = document.getElementById('user-service').value.trim();
 
   try {
     await grist.docApi.applyUserActions([
@@ -10915,6 +11576,7 @@ if (!isInsideGrist()) {
     await ensureTables();
     await loadSettings();
     await loadAllData();
+    await loadEffectivePermissions();
     updateNotificationBadge();
     await checkTimeBasedAutomations();
     await cleanupOldNotifications();
