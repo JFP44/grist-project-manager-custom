@@ -5683,6 +5683,7 @@ function renderUsersList() {
   var html = '<table class="data-table"><thead><tr>';
   html += '<th>' + t('fieldName') + '</th>';
   html += '<th>' + t('fieldEmail') + '</th>';
+  html += '<th>Service</th>';
   html += '<th>' + t('fieldRole') + '</th>';
   html += '<th>' + t('fieldGroup') + '</th>';
   html += '<th>' + t('colActions') + '</th>';
@@ -5697,6 +5698,7 @@ function renderUsersList() {
     html += '<tr>';
     html += '<td style="font-weight:700;">👤 ' + sanitize(u.Name) + '</td>';
     html += '<td>' + sanitize(u.Email) + '</td>';
+    html += '<td>' + (u.Service ? '<span class="assignee-chip">🏢 ' + sanitize(u.Service) + '</span>' : '--') + '</td>';
     html += '<td><span style="padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;background:' + roleBg + '">' + sanitize(roleText) + '</span></td>';
     html += '<td>' + (u.Group_Name ? '<span class="assignee-chip">👥 ' + sanitize(u.Group_Name) + '</span>' : '--') + '</td>';
     html += '<td><button class="btn-icon" onclick="openEditUserModal(' + u.id + ')" title="' + t('edit') + '">✏️</button>';
