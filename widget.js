@@ -1945,7 +1945,9 @@ async function ensureTables() {
       }
     }
 
-    if (USERS_TABLE === DEFAULT_USERS_TABLE && existingTables.indexOf(USERS_TABLE) === -1) {
+    if (USERS_TABLE === DEFAULT_USERS_TABLE) {
+      var latestTables = await grist.docApi.listTables();
+      if (latestTables.indexOf(USERS_TABLE) === -1) {
       await grist.docApi.applyUserActions([
         ['AddTable', USERS_TABLE, [
           { id: 'Name', type: 'Text' },
@@ -1955,6 +1957,7 @@ async function ensureTables() {
           { id: 'Service', type: 'Text' }
         ]]
       ]);
+      }
     }
 
     if (existingTables.indexOf(GROUPS_TABLE) === -1) {
