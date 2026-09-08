@@ -196,8 +196,9 @@ var i18n = {
     fieldEmail: 'Email',
     fieldRole: 'Rôle',
     roleAdmin: 'Administrateur',
-    roleMember: 'Membre',
-    roleViewer: 'Lecteur',
+    roleDeveloper: 'Développeur',
+    roleSupervisor: 'Superviseur',
+    roleReferentMetier: 'Référent métier',
     userCreated: 'Utilisateur ajouté !',
     userDeleted: 'Utilisateur supprimé.',
     groupCreated: 'Groupe créé !',
@@ -538,8 +539,9 @@ var i18n = {
     fieldEmail: 'Email',
     fieldRole: 'Role',
     roleAdmin: 'Administrator',
-    roleMember: 'Member',
-    roleViewer: 'Viewer',
+    roleDeveloper: 'Developer',
+    roleSupervisor: 'Supervisor',
+    roleReferentMetier: 'Business referent',
     userCreated: 'User added!',
     userDeleted: 'User deleted.',
     groupCreated: 'Group created!',
@@ -1948,7 +1950,7 @@ async function ensureTables() {
         ['AddTable', USERS_TABLE, [
           { id: 'Name', type: 'Text' },
           { id: 'Email', type: 'Text' },
-          { id: 'Role', type: 'Choice', widgetOptions: JSON.stringify({ choices: ['admin', 'member', 'viewer'] }) },
+          { id: 'Role', type: 'Choice', widgetOptions: JSON.stringify({ choices: ['Administrateur', 'Développeur', 'Superviseur', 'Référent métier'] }) },
           { id: 'Group_Name', type: 'Text' },
           { id: 'Service', type: 'Text' }
         ]]
@@ -2474,7 +2476,7 @@ async function loadAllData() {
           id: userData.id[i],
           Name: userData[nameCol] ? userData[nameCol][i] : '',
           Email: userData[emailCol] ? userData[emailCol][i] : '',
-          Role: userData[roleCol] ? userData[roleCol][i] : 'member',
+          Role: userData[roleCol] ? userData[roleCol][i] : 'Superviseur',
           Group_Name: userData[groupCol] ? userData[groupCol][i] : '',
           Service: userData[serviceCol] ? userData[serviceCol][i] : ''
         });
@@ -2803,9 +2805,10 @@ async function loadAllData() {
 }
 
 function roleLabel(role) {
-  if (role === 'admin') return t('roleAdmin');
-  if (role === 'viewer') return t('roleViewer');
-  if (role === 'member') return t('roleMember');
+  if (role === 'Administrateur') return t('roleAdmin');
+  if (role === 'Développeur') return t('roleDeveloper');
+  if (role === 'Superviseur') return t('roleSupervisor');
+  if (role === 'Référent métier') return t('roleReferentMetier');
   return role; // rôle personnalisé : affiché tel quel
 }
 
@@ -5692,8 +5695,14 @@ function renderUsersList() {
   for (var i = 0; i < displayedUsers.length; i++) {
     var u = displayedUsers[i];
     var roleText = userRoleDisplay(u) ? userRoleDisplay(u).split(',').map(function(r) { return roleLabel(r.trim()); }).join(', ') : '';
-    var firstRole = getUserRoles(u)[0] || 'member';
-    var roleBg = firstRole === 'admin' ? '#fef2f2;color:#dc2626' : (firstRole === 'viewer' ? '#f1f5f9;color:#64748b' : '#eff6ff;color:#1e40af');
+    var firstRole = getUserRoles(u)[0] || 'Superviseur';
+    var roleBg = firstRole === 'Administrateur'
+  ? '#fef2f2;color:#dc2626'
+  : (firstRole === 'Superviseur'
+    ? '#f1f5f9;color:#64748b'
+    : (firstRole === 'Référent métier'
+      ? '#f0fdf4;color:#15803d'
+      : '#eff6ff;color:#1e40af'));
 
     html += '<tr>';
     html += '<td style="font-weight:700;">👤 ' + sanitize(u.Name) + '</td>';
@@ -6686,7 +6695,7 @@ async function openNewUserModal() {
   html += '<div class="form-group"><label>' + t('fieldRole') + '</label><select id="user-role">';
   for (var i = 0; i < roleChoices.length; i++) {
     var r = roleChoices[i];
-    var sel = (r === 'member') ? ' selected' : '';
+    var sel = (r === 'Développeur') ? ' selected' : '';
     html += '<option value="' + sanitize(r) + '"' + sel + '>' + sanitize(roleLabel(r)) + '</option>';
   }
   html += '</select></div>';
@@ -11265,7 +11274,7 @@ function resolveRecipients(action, actionTarget, task) {
       .filter(Boolean);
   }
   if (action === 'notify_project_lead') {
-    return users.filter(function(u) { return u.Role === 'admin'; }).map(function(u) { return u.Email; }).filter(Boolean);
+    return users.filter(function(u) { return u.Role === 'Administrateur'; }).map(function(u) { return u.Email; }).filter(Boolean);
   }
   if (action === 'notify_specific' && actionTarget) {
     return [actionTarget];
