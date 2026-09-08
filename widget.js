@@ -1946,7 +1946,7 @@ async function ensureTables() {
     }
 
     if (USERS_TABLE === DEFAULT_USERS_TABLE) {
-      var latestTables = await grist.docApi.listTables();
+      var latestTables = await grist.docApi.listTables(); console.log('[GristPM] TABLES AVANT PM_Users:', latestTables);
       if (latestTables.indexOf(USERS_TABLE) === -1) {
       await grist.docApi.applyUserActions([
         ['AddTable', USERS_TABLE, [
