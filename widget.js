@@ -9664,6 +9664,7 @@ async function saveProject() {
         record.CreatedBy = currentUserEmail || '';
         record.CreatedAt = new Date().toISOString();
       }
+      console.log('[DEBUG PROJECT] record envoyé à Grist :', JSON.stringify(record));
       await grist.docApi.applyUserActions([
         ['AddRecord', PROJECTS_TABLE, null, record]
       ]);
