@@ -3212,28 +3212,6 @@ function myProjectIdSet() {
   var mine = myAssigneeValue();
   var set = {};
 
-  // Accès à tous les projets
-  if (canAccessAllProjects()) {
-    projects.forEach(function (p) {
-      set[p.id] = true;
-    });
-    return set;
-  }
-
-  // Accès aux projets du service de l'utilisateur
-  if (canAccessServiceProjects()) {
-    var user = getCurrentUser();
-    var myService = user ? String(user.Service || '').trim().toLowerCase() : '';
-
-    projects.forEach(function (p) {
-      var projectService = String(p.SERVICE_DEMANDEUR || '').trim().toLowerCase();
-
-      if (myService && projectService && projectService === myService) {
-        set[p.id] = true;
-      }
-    });
-  }
-
   // Projets personnels : créés par moi, responsable du projet
   // ou contenant une tâche qui m'est assignée.
   projects.forEach(function (p) {
@@ -5911,148 +5889,6 @@ var _manageRolesState = { roles: [] };
 // EFFECTIVE USER PERMISSIONS
 // USERS.Role -> PM_Roles -> effective rights
 // ============================================================
-
-var _effectivePermissions = {
-  Projects_Access: 'none',
-  Data_Read: false,
-  Data_Write: false,
-  Data_Comment: false,
-  Structure_Access: false
-};
-
-function getCurrentUser() {
-  if (!currentUserEmail) return null;
-
-  var email = currentUserEmail.toLowerCase().trim();
-
-  return users.find(function(u) {
-    return (u.Email || '').toLowerCase().trim() === email;
-  }) || null;
-}
-
-function getCurrentUserRoleNames() {
-  var user = getCurrentUser();
-  return user ? getUserRoles(user) : [];
-}
-
-async function loadEffectivePermissions() {
-  // Reset permissions
-  _effectivePermissions = {
-    Projects_Access: 'none',
-    Data_Read: false,
-    Data_Write: false,
-    Data_Comment: false,
-    Structure_Access: false
-  };
-
-  var user = getCurrentUser();
-
-  // Owner keeps full application access
-  if (isOwner) {
-    _effectivePermissions.Projects_Access = 'all';
-    _effectivePermissions.Data_Read = true;
-    _effectivePermissions.Data_Write = true;
-    _effectivePermissions.Data_Comment = true;
-    _effectivePermissions.Structure_Access = true;
-    return;
-  }
-
-  if (!user) {
-    console.warn('[GristPM] Utilisateur courant introuvable dans USERS:', currentUserEmail);
-    return;
-  }
-
-  var roleNames = getUserRoles(user);
-  if (!roleNames.length) {
-    console.warn('[GristPM] Aucun rôle attribué à:', user.Email);
-    return;
-  }
-
-  try {
-    var roleData = await grist.docApi.fetchTable(ROLES_TABLE);
-
-    if (!roleData || !roleData.id || !roleData.Name) return;
-
-    for (var i = 0; i < roleData.id.length; i++) {
-      var roleName = String(roleData.Name[i] || '').trim();
-
-      if (roleNames.indexOf(roleName) === -1) continue;
-
-      var projectAccess = roleData.Projects_Access
-        ? (roleData.Projects_Access[i] || 'none')
-        : 'none';
-
-      // Keep the most permissive project access:
-      // none < service < all
-      var accessRank = {
-        none: 0,
-        service: 1,
-        all: 2
-      };
-
-      if ((accessRank[projectAccess] || 0) >
-          (accessRank[_effectivePermissions.Projects_Access] || 0)) {
-        _effectivePermissions.Projects_Access = projectAccess;
-      }
-
-      // Multiple roles: any role granting a right grants it.
-      if (roleData.Data_Read && roleData.Data_Read[i]) {
-        _effectivePermissions.Data_Read = true;
-      }
-
-      if (roleData.Data_Write && roleData.Data_Write[i]) {
-        _effectivePermissions.Data_Write = true;
-      }
-
-      if (roleData.Data_Comment && roleData.Data_Comment[i]) {
-        _effectivePermissions.Data_Comment = true;
-      }
-
-      if (roleData.Structure_Access && roleData.Structure_Access[i]) {
-        _effectivePermissions.Structure_Access = true;
-      }
-    }
-
-    console.log(
-      '[GristPM] Droits effectifs:',
-      user.Email,
-      roleNames,
-      _effectivePermissions
-    );
-
-  } catch (e) {
-    console.error('[GristPM] Impossible de charger les droits effectifs:', e);
-  }
-}
-
-function hasPermission(permission) {
-  return !!_effectivePermissions[permission];
-}
-
-function canReadData() {
-  return hasPermission('Data_Read');
-}
-
-function canWriteData() {
-  return hasPermission('Data_Write');
-}
-
-function canComment() {
-  return hasPermission('Data_Comment');
-}
-
-function canAccessStructure() {
-  return hasPermission('Structure_Access');
-}
-
-function canAccessAllProjects() {
-  return _effectivePermissions.Projects_Access === 'all';
-}
-
-function canAccessServiceProjects() {
-  return _effectivePermissions.Projects_Access === 'service';
-}
-
 
 async function openManageRolesModal() {
   try {
@@ -11590,7 +11426,6 @@ if (!isInsideGrist()) {
     await ensureTables();
     await loadSettings();
     await loadAllData();
-    await loadEffectivePermissions();
     updateNotificationBadge();
     await checkTimeBasedAutomations();
     await cleanupOldNotifications();
