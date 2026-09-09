@@ -6840,6 +6840,31 @@ async function startNewTask(defaultStatus, dateStr, prefill) {
   } catch (e) { showToast('Error: ' + e.message, 'error'); }
 }
 
+function updateTaskProjectFields() {
+  var projectEl = document.getElementById('task-project');
+  var serviceEl = document.getElementById('task-service-demandeur');
+  var tagEl = document.getElementById('task-tag');
+  if (!projectEl) return;
+
+  var projectId = projectEl.value ? parseInt(projectEl.value) : 0;
+  var project = projects.find(function(p) { return p.id === projectId; });
+
+  if (!project) {
+    if (serviceEl) serviceEl.value = '';
+    return;
+  }
+
+  // SERVICE DEMANDEUR = celui du projet, automatiquement
+  if (serviceEl) {
+    serviceEl.value = project.SERVICE_DEMANDEUR || '';
+  }
+
+  // STATUT = statut actuel du projet, automatiquement
+  if (tagEl && project.Status) {
+    tagEl.value = project.Status;
+  }
+}
+
 function openEditTaskModal(taskId, preserveAssignees) {
   var task = tasks.find(function(t) { return t.id === taskId; });
   if (!task) return;
@@ -6919,10 +6944,22 @@ function openEditTaskModal(taskId, preserveAssignees) {
     html += '</div></div>';
   }
 
-  // Status
+  // Projet
+  var projectOptions = '<option value="">' + t('noProject') + '</option>';
+  for (var pi = 0; pi < projects.length; pi++) {
+    var projSel = projects[pi].id === task.Project_Id ? ' selected' : '';
+    projectOptions += '<option value="' + projects[pi].id + '"' + projSel + '>' + sanitize(projects[pi].Name) + '</option>';
+  }
+  html += '<div class="detail-field">';
+  html += '<span class="detail-field-icon">📂</span>';
+  html += '<span class="detail-field-label">' + t('project') + '</span>';
+  html += '<div class="detail-field-value"><select id="task-project" onchange="updateTaskProjectFields()">' + projectOptions + '</select></div>';
+  html += '</div>';
+
+  // État de la tâche
   html += '<div class="detail-field">';
   html += '<span class="detail-field-icon">📊</span>';
-  html += '<span class="detail-field-label">' + t('fieldStatus') + '</span>';
+  html += '<span class="detail-field-label">État</span>';
   html += '<div class="detail-field-value"><select id="task-status">';
   var _statuses2 = getKanbanStatuses();
   for (var _si2 = 0; _si2 < _statuses2.length; _si2++) {
@@ -6931,6 +6968,30 @@ function openEditTaskModal(taskId, preserveAssignees) {
     html += '<option value="' + _s2.key + '"' + (task.Status === _s2.key ? ' selected' : '') + '>' + _sl2 + '</option>';
   }
   html += '</select></div></div>';
+
+  // SERVICE DEMANDEUR — récupéré automatiquement depuis le projet
+  var categoryOptions = '<option value="">--</option>';
+  for (var ci = 0; ci < categories.length; ci++) {
+    var catSel = categories[ci].Name === task.SERVICE_DEMANDEUR ? ' selected' : '';
+    categoryOptions += '<option value="' + sanitize(categories[ci].Name) + '"' + catSel + '>' + sanitize(categories[ci].Name) + '</option>';
+  }
+  html += '<div class="detail-field">';
+  html += '<span class="detail-field-icon">📁</span>';
+  html += '<span class="detail-field-label">SERVICE DEMANDEUR</span>';
+  html += '<div class="detail-field-value"><select id="task-service-demandeur" disabled>' + categoryOptions + '</select></div>';
+  html += '</div>';
+
+  // Statut du projet
+  var tagOptions = '<option value="">--</option>';
+  for (var ti = 0; ti < tags.length; ti++) {
+    var tagSel = tags[ti].Name === task.Tag ? ' selected' : '';
+    tagOptions += '<option value="' + sanitize(tags[ti].Name) + '"' + tagSel + '>' + sanitize(tags[ti].Name) + '</option>';
+  }
+  html += '<div class="detail-field">';
+  html += '<span class="detail-field-icon">🏷️</span>';
+  html += '<span class="detail-field-label">Statut</span>';
+  html += '<div class="detail-field-value"><select id="task-tag">' + tagOptions + '</select></div>';
+  html += '</div>';
 
   // Dates
   html += '<div class="detail-field">';
@@ -6960,42 +7021,6 @@ function openEditTaskModal(taskId, preserveAssignees) {
   html += '<span class="detail-field-icon">👥</span>';
   html += '<span class="detail-field-label">' + t('fieldGroup') + '</span>';
   html += '<div class="detail-field-value"><select id="task-group">' + groupOptions + '</select></div>';
-  html += '</div>';
-
-  // Project
-  var projectOptions = '<option value="">' + t('noProject') + '</option>';
-  for (var pi = 0; pi < projects.length; pi++) {
-    var projSel = projects[pi].id === task.Project_Id ? ' selected' : '';
-    projectOptions += '<option value="' + projects[pi].id + '"' + projSel + '>' + sanitize(projects[pi].Name) + '</option>';
-  }
-  html += '<div class="detail-field">';
-  html += '<span class="detail-field-icon">📂</span>';
-  html += '<span class="detail-field-label">' + t('project') + '</span>';
-  html += '<div class="detail-field-value"><select id="task-project">' + projectOptions + '</select></div>';
-  html += '</div>';
-
-  // Category
-  var categoryOptions = '<option value="">--</option>';
-  for (var ci = 0; ci < categories.length; ci++) {
-    var catSel = categories[ci].Name === task.SERVICE_DEMANDEUR ? ' selected' : '';
-    categoryOptions += '<option value="' + sanitize(categories[ci].Name) + '"' + catSel + '>' + sanitize(categories[ci].Name) + '</option>';
-  }
-  html += '<div class="detail-field">';
-  html += '<span class="detail-field-icon">📁</span>';
-  html += '<span class="detail-field-label">' + 'SERVICE DEMANDEUR' + '</span>';
-  html += '<div class="detail-field-value"><select id="task-service-demandeur">' + categoryOptions + '</select></div>';
-  html += '</div>';
-
-  // Tag
-  var tagOptions = '<option value="">--</option>';
-  for (var ti = 0; ti < tags.length; ti++) {
-    var tagSel = tags[ti].Name === task.Tag ? ' selected' : '';
-    tagOptions += '<option value="' + sanitize(tags[ti].Name) + '"' + tagSel + '>' + sanitize(tags[ti].Name) + '</option>';
-  }
-  html += '<div class="detail-field">';
-  html += '<span class="detail-field-icon">🏷️</span>';
-  html += '<span class="detail-field-label">' + t('tag') + '</span>';
-  html += '<div class="detail-field-value"><select id="task-tag">' + tagOptions + '</select></div>';
   html += '</div>';
 
   // === SUBTASKS SECTION ===
