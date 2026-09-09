@@ -9556,6 +9556,50 @@ function editProject(projectId) {
   document.getElementById('project-form-title').textContent = t('editProject');
 }
 
+function filterProjectReferents(value) {
+  var input = document.getElementById('project-referent-metier');
+  var box = document.getElementById('project-referent-suggestions');
+  if (!input || !box) return;
+
+  var search = String(value || '').trim().toLowerCase();
+
+  var referents = users.filter(function(u) {
+    return u.Role === 'Référent métier' && u.Name;
+  });
+
+  if (search) {
+    referents = referents.filter(function(u) {
+      return String(u.Name).toLowerCase().startsWith(search);
+    });
+  }
+
+  if (!referents.length) {
+    box.innerHTML = '';
+    box.style.display = 'none';
+    return;
+  }
+
+  box.innerHTML = referents.map(function(u) {
+    var name = String(u.Name).replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+    return '<div style="padding:8px 10px;cursor:pointer;border-bottom:1px solid #e2e8f0;" ' +
+      'onmousedown="selectProjectReferent(\'' + name.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + '\')">' +
+      name + '</div>';
+  }).join('');
+
+  box.style.display = 'block';
+}
+
+function selectProjectReferent(name) {
+  var input = document.getElementById('project-referent-metier');
+  var box = document.getElementById('project-referent-suggestions');
+
+  if (input) input.value = name;
+  if (box) {
+    box.innerHTML = '';
+    box.style.display = 'none';
+  }
+}
+
 async function saveProject() {
   var projectId = document.getElementById('edit-project-id').value;
   var name = document.getElementById('project-name').value.trim();
@@ -9566,6 +9610,29 @@ async function saveProject() {
   var serviceDemandeur = serviceDemandeurEl ? serviceDemandeurEl.value : '';
   var referentMetierEl = document.getElementById('project-referent-metier');
   var referentMetier = referentMetierEl ? referentMetierEl.value.trim() : '';
+
+  // Si le référent métier n'existe pas dans PM_Users, le créer automatiquement
+  if (referentMetier) {
+    var existingReferent = users.find(function(u) {
+      return String(u.Name || '').trim().toLowerCase() === referentMetier.toLowerCase();
+    });
+
+    if (!existingReferent) {
+      var newReferent = {};
+      newReferent[getColumnName('users', 'name')] = referentMetier;
+      newReferent[getColumnName('users', 'email')] = '';
+      newReferent[getColumnName('users', 'role')] = 'Référent métier';
+      newReferent[getColumnName('users', 'group')] = '';
+      newReferent[getColumnName('users', 'service')] = serviceDemandeur;
+
+      await grist.docApi.applyUserActions([
+        ['AddRecord', USERS_TABLE, null, newReferent]
+      ]);
+
+      console.log('[GristPM] Nouveau référent métier créé :', referentMetier);
+    }
+  }
+
   var leadEl = document.getElementById('project-lead');
   var lead = leadEl ? leadEl.value : '';
 
