@@ -912,7 +912,7 @@ var columnMapping = {
     group: 'Group_Name',
     startDate: 'Start_Date',
     dueDate: 'Due_Date',
-    serviceDemandeur: 'SERVICE DEMANDEUR',
+    serviceDemandeur: 'SERVICE_DEMANDEUR',
     tag: 'Tag',
     recurrence: 'Recurrence',
     estimatedHours: 'Estimated_Hours',
@@ -931,8 +931,8 @@ var columnMapping = {
     description: 'Description',
     color: 'Color',
     status: 'Status',
-    serviceDemandeur: 'SERVICE DEMANDEUR',
-    referentMetier: 'Référent métier',
+    serviceDemandeur: 'SERVICE_DEMANDEUR',
+    referentMetier: 'Referent_metier',
     lead: 'Lead'
   },
   categories: {
