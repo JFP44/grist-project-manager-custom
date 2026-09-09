@@ -9449,7 +9449,9 @@ function populateProjectLead(selectedValue) {
   var sel = document.getElementById('project-lead');
   if (!sel) return;
   var html = '<option value="">--</option>';
-  users.forEach(function (u) {
+  users.filter(function (u) {
+    return u.Role === 'Développeur' || u.Role === 'Administrateur';
+  }).forEach(function (u) {
     var val = u.Email || u.Name;
     if (!val) return;
     html += '<option value="' + sanitize(val) + '"' + (val === selectedValue ? ' selected' : '') + '>' + sanitize(u.Name || u.Email) + '</option>';
