@@ -9681,6 +9681,9 @@ async function saveProject() {
       console.log('[SAVE PROJECT] Record FINAL avant AddRecord:', JSON.stringify(record));
       console.log('[SAVE PROJECT] >>> APPEL GRIST AddRecord PM_Projects');
       try {
+        console.log('[SAVE PROJECT] >>> vérification colonnes PM_Projects');
+        var debugProjects = await grist.docApi.fetchTable(PROJECTS_TABLE);
+        console.log('[SAVE PROJECT] Colonnes réellement renvoyées par Grist:', Object.keys(debugProjects));
         console.log('[SAVE PROJECT] >>> applyUserActions AddRecord');
         await grist.docApi.applyUserActions([
           ['AddRecord', PROJECTS_TABLE, null, record]
