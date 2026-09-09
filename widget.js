@@ -9680,9 +9680,18 @@ async function saveProject() {
       }
       console.log('[SAVE PROJECT] Record FINAL avant AddRecord:', JSON.stringify(record));
       console.log('[SAVE PROJECT] >>> APPEL GRIST AddRecord PM_Projects');
-      await grist.docApi.applyUserActions([
-        ['AddRecord', PROJECTS_TABLE, null, record]
-      ]);
+      try {
+        console.log('[SAVE PROJECT] >>> applyUserActions AddRecord');
+        await grist.docApi.applyUserActions([
+          ['AddRecord', PROJECTS_TABLE, null, record]
+        ]);
+        console.log('[SAVE PROJECT] <<< AddRecord OK');
+      } catch (gristError) {
+        console.error('[SAVE PROJECT] !!! ERREUR AddRecord:', gristError);
+        console.error('[SAVE PROJECT] message:', gristError && gristError.message);
+        console.error('[SAVE PROJECT] stack:', gristError && gristError.stack);
+        throw gristError;
+      }
       showToast(t('addProject') + ' ✓', 'success');
     }
     closeModalForce();
