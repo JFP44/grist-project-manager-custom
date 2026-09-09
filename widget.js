@@ -780,7 +780,8 @@ async function syncSubtaskStatusChoices() {
     var widgetOptions = JSON.stringify({ widget: 'TextBox', choices: choices, choiceOptions: choiceOptions });
     // Évite les réécritures inutiles (signature en cache navigateur)
     if (typeof localStorage !== 'undefined' && localStorage.getItem('pm_subtask_status_sig') === widgetOptions) return;
-    await grist.docApi.applyUserActions([
+    console.log('[SAVE PROJECT] >>> applyUserActions');
+      await grist.docApi.applyUserActions([
       ['ModifyColumn', SUBTASKS_TABLE, 'Status', { widgetOptions: widgetOptions }]
     ]);
     if (typeof localStorage !== 'undefined') localStorage.setItem('pm_subtask_status_sig', widgetOptions);
@@ -9603,6 +9604,8 @@ function selectProjectReferent(name) {
 }
 
 async function saveProject() {
+  console.log('[SAVE PROJECT] ===== CLIC ENREGISTRER =====');
+  console.log('[SAVE PROJECT] Lecture du formulaire...');
   var projectId = document.getElementById('edit-project-id').value;
   var name = document.getElementById('project-name').value.trim();
   var description = document.getElementById('project-description').value.trim();
@@ -9612,8 +9615,18 @@ async function saveProject() {
   var serviceDemandeur = serviceDemandeurEl ? serviceDemandeurEl.value : '';
   var referentMetierEl = document.getElementById('project-referent-metier');
   var referentMetier = referentMetierEl ? referentMetierEl.value.trim() : '';
+  console.log('[SAVE PROJECT] Valeurs formulaire:', {
+    projectId: projectId,
+    name: name,
+    description: description,
+    color: color,
+    status: status,
+    serviceDemandeur: serviceDemandeur,
+    referentMetier: referentMetier
+  });
 
   // Si le référent métier n'existe pas dans PM_Users, le créer automatiquement
+  console.log('[SAVE PROJECT] Test référent métier:', referentMetier);
   if (referentMetier) {
     var existingReferent = users.find(function(u) {
       return String(u.Name || '').trim().toLowerCase() === referentMetier.toLowerCase();
@@ -9637,6 +9650,7 @@ async function saveProject() {
 
   var leadEl = document.getElementById('project-lead');
   var lead = leadEl ? leadEl.value : '';
+  console.log('[SAVE PROJECT] Lead:', lead);
 
   if (!name) {
     showToast(t('projectName') + ' ' + t('required'), 'error');
@@ -9664,7 +9678,8 @@ async function saveProject() {
         record.CreatedBy = currentUserEmail || '';
         record.CreatedAt = new Date().toISOString();
       }
-      console.log('[DEBUG PROJECT] record envoyé à Grist :', JSON.stringify(record));
+      console.log('[SAVE PROJECT] Record FINAL avant AddRecord:', JSON.stringify(record));
+      console.log('[SAVE PROJECT] >>> APPEL GRIST AddRecord PM_Projects');
       await grist.docApi.applyUserActions([
         ['AddRecord', PROJECTS_TABLE, null, record]
       ]);
