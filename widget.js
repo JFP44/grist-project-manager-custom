@@ -6765,7 +6765,7 @@ function openNewTaskModal(defaultStatus) {
   html += '<div class="detail-field">';
   html += '<span class="detail-field-icon">📂</span>';
   html += '<span class="detail-field-label">' + t('project') + '</span>';
-  html += '<div class="detail-field-value"><select id="task-project">' + projectOptions + '</select></div>';
+  html += '<div class="detail-field-value"><select id="task-project" onchange="updateTaskProjectFields()">' + projectOptions + '</select></div>';
   html += '</div>';
 
   // Category
