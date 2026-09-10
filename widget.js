@@ -916,7 +916,7 @@ var columnMapping = {
     tag: 'Tag',
     recurrence: 'Recurrence',
     estimatedHours: 'Estimated_Hours',
-    createdAt: 'Created_At',
+    createdAt: 'Créée le',
     projectId: 'Project_Id'
   },
   users: {
@@ -2210,7 +2210,7 @@ async function ensureTables() {
         ['task_tag', TASKS_TABLE, 'Tag', 'Tag', false, 'Tag'],
         ['task_recurrence', TASKS_TABLE, 'Recurrence', 'Récurrence', false, 'Recurrence'],
         ['task_estimated_hours', TASKS_TABLE, 'Estimated_Hours', 'Heures estimées', false, 'Estimated_Hours'],
-        ['task_created_at', TASKS_TABLE, 'Created_At', 'Créé le', false, 'Created_At'],
+        ['task_created_at', TASKS_TABLE, 'Créée le', 'Créée le', false, 'Créée le'],
         ['task_project_id', TASKS_TABLE, 'Project_Id', 'Projet', false, 'Project_Id'],
         // Users mapping
         ['user_name', USERS_TABLE, 'Name', 'Nom', true, 'Name'],
