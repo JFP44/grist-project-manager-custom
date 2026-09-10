@@ -6881,6 +6881,19 @@ function updateTaskProjectFields() {
   if (tagEl) {
     var statusValue = String(project.Status || '').trim();
 
+    // PM_Projects.Status peut être :
+    // - le texte du statut (ex. "A valider")
+    // - l'ID de référence vers PM_Tags (ex. "2")
+    if (statusValue && /^\d+$/.test(statusValue)) {
+      var statusRef = tags.find(function(tag) {
+        return String(tag.id) === statusValue;
+      });
+
+      if (statusRef && statusRef.Name) {
+        statusValue = String(statusRef.Name).trim();
+      }
+    }
+
     if (statusValue) {
       var statusOption = Array.from(tagEl.options).find(function(opt) {
         return opt.value === statusValue;
