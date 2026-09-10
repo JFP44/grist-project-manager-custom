@@ -9751,6 +9751,7 @@ async function saveProject() {
     setField(record, 'projects', 'referentMetier', referentMetier);
     setField(record, 'projects', 'lead', lead);
     setField(record, 'projects', 'ticketSumit', ticketSumit);
+    console.log('[TEST TICKET] record=', JSON.stringify(record));
     
     if (projectId) {
       await grist.docApi.applyUserActions([
