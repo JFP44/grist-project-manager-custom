@@ -9697,6 +9697,7 @@ async function saveProject() {
 
   var ticketSumitEl = document.getElementById('project-ticket-sumit');
   var ticketSumit = ticketSumitEl ? ticketSumitEl.value.trim() : '';
+  console.log('[SAVE PROJECT] Ticket_SUMIT:', ticketSumit);
 
   console.log('[SAVE PROJECT] Valeurs formulaire:', {
     projectId: projectId,
