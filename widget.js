@@ -6848,7 +6848,7 @@ function updateTaskProjectFields() {
   if (!projectEl) return;
 
   var projectId = projectEl.value ? parseInt(projectEl.value) : 0;
-  var project = projects.find(function(p) { return p.id === projectId; });
+  var project = projects.find(function(p) { return String(p.id) === String(projectId); });
 
   if (!project) {
     if (serviceEl) serviceEl.value = '';
