@@ -6848,24 +6848,54 @@ function updateTaskProjectFields() {
   if (!projectEl) return;
 
   var projectId = projectEl.value ? parseInt(projectEl.value) : 0;
-  var project = projects.find(function(p) { return String(p.id) === String(projectId); });
+  var project = projects.find(function(p) {
+    return String(p.id) === String(projectId);
+  });
 
   if (!project) {
     if (serviceEl) serviceEl.value = '';
+    if (tagEl) tagEl.value = '';
     return;
   }
 
-  // SERVICE DEMANDEUR = celui du projet, automatiquement
+  // SERVICE DEMANDEUR = celui du projet
   if (serviceEl) {
-    serviceEl.value = project.SERVICE_DEMANDEUR || '';
+    var serviceValue = String(project.SERVICE_DEMANDEUR || '').trim();
+
+    if (serviceValue) {
+      var serviceOption = Array.from(serviceEl.options).find(function(opt) {
+        return opt.value === serviceValue;
+      });
+
+      if (!serviceOption) {
+        serviceEl.add(new Option(serviceValue, serviceValue));
+      }
+
+      serviceEl.value = serviceValue;
+    } else {
+      serviceEl.value = '';
+    }
   }
 
-  // STATUT = statut actuel du projet, automatiquement
-  if (tagEl && project.Status) {
-    tagEl.value = project.Status;
+  // STATUT = celui du projet
+  if (tagEl) {
+    var statusValue = String(project.Status || '').trim();
+
+    if (statusValue) {
+      var statusOption = Array.from(tagEl.options).find(function(opt) {
+        return opt.value === statusValue;
+      });
+
+      if (!statusOption) {
+        tagEl.add(new Option(statusValue, statusValue));
+      }
+
+      tagEl.value = statusValue;
+    } else {
+      tagEl.value = '';
+    }
   }
 }
-
 function openEditTaskModal(taskId, preserveAssignees) {
   var task = tasks.find(function(t) { return t.id === taskId; });
   if (!task) return;
