@@ -2142,7 +2142,7 @@ async function ensureTables() {
         console.log('[GristPM] Project_Id ajouté à PM_Tasks');
       }
     } catch (e) {
-      console.log('[GristPM] Migration Project_Id ignorée :', e.message);
+      console.error('[GristPM] ERREUR Migration Project_Id :', e);
     }
 
     // Migration Group_Name / Tag / Recurrence sur PM_Templates
@@ -2738,6 +2738,7 @@ async function loadAllData() {
       var colorCol = getColumnName('projects', 'color');
       var statusCol = getColumnName('projects', 'status');
       var serviceDemandeurCol = getColumnName('projects', 'serviceDemandeur');
+      console.log('[DEBUG PROJECT] serviceDemandeurCol=', serviceDemandeurCol, 'statusCol=', statusCol, 'projData keys=', Object.keys(projData));
       var referentMetierCol = getColumnName('projects', 'referentMetier');
       
       for (var i = 0; i < projData.id.length; i++) {
