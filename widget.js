@@ -958,39 +958,7 @@ var currentUserEmail = '';
 
 var PM_SERVICES = [];
 var PM_STATUTS = [];
-var SERVICE_DEMANDEUR_OPTIONS = [
-    "SGA",
-    "SAJ",
-    "SAE",
-    "SAAS",
-    "RH",
-    "Pôle1d44",
-    "PACTE 1D PU",
-    "PACTE 1D PR",
-    "MED PREV",
-    "EFIV442D",
-    "EFIV441D",
-    "DSI – ANT 44",
-    "DSI",
-    "DSDEN49 - DRH",
-    "DSDEN49",
-    "DSDEN 85 / DRH",
-    "DSDEN 72 / PERS. ENS. 1DPUB",
-    "DSDEN 53 / GRHAG",
-    "DSDEN 53 / CPDEPS",
-    "DSDEN 49 – ASH",
-    "DRANE",
-    "DIPE",
-    "DIPATE",
-    "DEC",
-    "DBF2",
-    "DBF1",
-    "DAPSI",
-    "DAPP / DRH49",
-    "DAPP",
-    "DAEP",
-    "CDOEA - SDEI 85"
-];
+
 
 function buildServiceDemandeurOptions(currentValue) {
   var html = '<option value="">--</option>';
@@ -2732,6 +2700,7 @@ async function loadAllData() {
   }
 
   console.log('PM_Services chargés:', PM_SERVICES);
+  console.log('[DEBUG PM_SERVICES]', JSON.stringify(PM_SERVICES));
 
   try {
     var projData = await grist.docApi.fetchTable(PROJECTS_TABLE);
@@ -2744,6 +2713,7 @@ async function loadAllData() {
       var statusCol = getColumnName('projects', 'status');
       var serviceDemandeurCol = getColumnName('projects', 'serviceDemandeur');
       console.log('[DEBUG PROJECT] serviceDemandeurCol=', serviceDemandeurCol, 'statusCol=', statusCol, 'projData keys=', Object.keys(projData));
+      console.log('[DEBUG SERVICES PROJECTS]', JSON.stringify(projData[serviceDemandeurCol]));
       var referentMetierCol = getColumnName('projects', 'referentMetier');
       var ticketSumitCol = getColumnName('projects', 'ticketSumit');
       
@@ -8942,7 +8912,63 @@ function applyOwnerRestrictions() {
 
 function renderStatsView() {
   var filteredTasks = getFilteredTasks();
-  // STATUT chart - basé sur le champ Tag
+
+  // Projets concernés par les sélecteurs existants
+  // (les statistiques de cette vue portent sur les projets, pas les tâches)
+  var filteredProjects = projects.slice();
+
+  if (currentFilterRole || currentFilterAssignee) {
+    var projectIdsFromPeopleFilters = {};
+
+    var roleIdSet = {};
+    if (currentFilterRole) {
+      users.filter(function(u) {
+        return userMatchesRole(u, currentFilterRole);
+      }).forEach(function(u) {
+        if (u.Email) roleIdSet[String(u.Email).toLowerCase().trim()] = true;
+        if (u.Name) roleIdSet[String(u.Name).toLowerCase().trim()] = true;
+      });
+    }
+
+    var personIdSet = currentFilterAssignee
+      ? personIdentSet(currentFilterAssignee)
+      : null;
+
+    tasks.forEach(function(t) {
+      if (currentFilterRole && !assigneeListHas(t.Assignee, roleIdSet)) return;
+      if (currentFilterAssignee && !assigneeListHas(t.Assignee, personIdSet)) return;
+
+      if (t.Project_Id) {
+        projectIdsFromPeopleFilters[Number(t.Project_Id)] = true;
+      }
+    });
+
+    filteredProjects = filteredProjects.filter(function(p) {
+      return projectIdsFromPeopleFilters[Number(p.id)];
+    });
+  }
+
+  if (currentFilterServiceDemandeur) {
+    var projectServiceKey = String(currentFilterServiceDemandeur).trim();
+    filteredProjects = filteredProjects.filter(function(p) {
+      return String(p.SERVICE_DEMANDEUR || '').trim() === projectServiceKey;
+    });
+  }
+
+  if (currentFilterTag) {
+    var projectStatusKey = String(currentFilterTag).trim();
+    filteredProjects = filteredProjects.filter(function(p) {
+      return String(p.Status || '').trim() === projectStatusKey;
+    });
+  }
+
+  if (currentProjectId) {
+    var statsProjectId = Number(currentProjectId);
+    filteredProjects = filteredProjects.filter(function(p) {
+      return Number(p.id) === statsProjectId;
+    });
+  }
+  // STATUT chart - basé sur le champ Status des projets
   var STATUTS = [
     'A valider',
     "A l'étude",
@@ -8959,8 +8985,8 @@ function renderStatsView() {
   var statusCounts = {};
   STATUTS.forEach(function(s) { statusCounts[s] = 0; });
 
-  filteredTasks.forEach(function(t) {
-    var value = String(t.Tag || '').trim();
+  filteredProjects.forEach(function(p) {
+    var value = String(p.Status || '').trim();
     if (!value) return;
 
     // STATUT est désormais un champ à valeur unique.
@@ -8996,8 +9022,8 @@ function renderStatsView() {
   // SERVICE DEMANDEUR chart
   var serviceCounts = {};
 
-  filteredTasks.forEach(function(t) {
-    var service = String(t.SERVICE_DEMANDEUR || '').trim();
+  filteredProjects.forEach(function(p) {
+    var service = String(p.SERVICE_DEMANDEUR || '').trim();
     if (!service) return;
 
     if (service.indexOf(',') !== -1) {
@@ -9547,6 +9573,21 @@ function populateProjectLead(selectedValue) {
   sel.innerHTML = html;
 }
 
+function populateProjectServiceDemandeur(selectedValue) {
+  var input = document.getElementById('project-service-demandeur');
+  var list = document.getElementById('project-service-demandeur-list');
+  if (!input || !list) return;
+
+  var html = '';
+
+  PM_SERVICES.forEach(function(service) {
+    html += '<option value="' + sanitize(service) + '"></option>';
+  });
+
+  list.innerHTML = html;
+  input.value = selectedValue || '';
+}
+
 function openProjectModal() {
   document.getElementById('project-modal').style.display = 'flex';
   document.getElementById('edit-project-id').value = '';
@@ -9556,6 +9597,7 @@ function openProjectModal() {
   document.getElementById('project-status').value = 'A valider';
   var serviceEl = document.getElementById('project-service-demandeur');
   if (serviceEl) serviceEl.value = '';
+  populateProjectServiceDemandeur('');
   var referentMetierEl = document.getElementById('project-referent-metier');
   if (referentMetierEl) referentMetierEl.value = '';
   populateProjectLead('');
@@ -9638,8 +9680,7 @@ function editProject(projectId) {
   document.getElementById('project-description').value = proj.Description || '';
   document.getElementById('project-color').value = proj.Color || '#6366f1';
   document.getElementById('project-status').value = proj.Status || 'A valider';
-  var serviceEl = document.getElementById('project-service-demandeur');
-  if (serviceEl) serviceEl.value = proj.SERVICE_DEMANDEUR || '';
+  populateProjectServiceDemandeur(proj.SERVICE_DEMANDEUR || '');
   var referentMetierEl = document.getElementById('project-referent-metier');
   if (referentMetierEl) referentMetierEl.value = proj.Referent_Metier || '';
   populateProjectLead(proj.Lead || '');
@@ -9742,6 +9783,18 @@ async function saveProject() {
 
       console.log('[GristPM] Nouveau référent métier créé :', referentMetier);
     }
+  }
+
+  // Si le service demandeur n'existe pas dans PM_Services, le créer automatiquement
+  if (serviceDemandeur && PM_SERVICES.indexOf(serviceDemandeur) === -1) {
+    await grist.docApi.applyUserActions([
+      ['AddRecord', SERVICES_TABLE, null, {
+        Service: serviceDemandeur
+      }]
+    ]);
+
+    PM_SERVICES.push(serviceDemandeur);
+    console.log('[GristPM] Nouveau service créé :', serviceDemandeur);
   }
 
   var leadEl = document.getElementById('project-lead');
