@@ -2735,6 +2735,7 @@ async function loadAllData() {
 
   try {
     var projData = await grist.docApi.fetchTable(PROJECTS_TABLE);
+    console.log('[DEBUG TICKET SOURCE] PROJECTS_TABLE=', PROJECTS_TABLE, 'Ticket_SUMIT=', projData.Ticket_SUMIT);
     projects = [];
     if (projData && projData.id) {
       var nameCol = getColumnName('projects', 'name');
