@@ -912,7 +912,7 @@ var columnMapping = {
     group: 'Group_Name',
     startDate: 'Start_Date',
     dueDate: 'Due_Date',
-    serviceDemandeur: 'SERVICE DEMANDEUR',
+    serviceDemandeur: 'SERVICE_DEMANDEUR',
     tag: 'Tag',
     recurrence: 'Recurrence',
     estimatedHours: 'Estimated_Hours',
