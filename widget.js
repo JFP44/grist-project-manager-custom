@@ -933,7 +933,8 @@ var columnMapping = {
     status: 'Status',
     serviceDemandeur: 'SERVICE_DEMANDEUR',
     referentMetier: 'Referent_metier',
-    lead: 'Lead'
+    lead: 'Lead',
+    ticketSumit: 'Ticket_SUMIT'
   },
   categories: {
     name: 'Name',
@@ -2177,6 +2178,7 @@ async function ensureTables() {
       if (projCols.indexOf('CreatedBy') === -1) projMig.push(['AddColumn', PROJECTS_TABLE, 'CreatedBy', { type: 'Text' }]);
       if (projCols.indexOf('CreatedAt') === -1) projMig.push(['AddColumn', PROJECTS_TABLE, 'CreatedAt', { type: 'Text' }]);
       if (projCols.indexOf('Lead') === -1) projMig.push(['AddColumn', PROJECTS_TABLE, 'Lead', { type: 'Text' }]);
+      if (projCols.indexOf('Ticket_SUMIT') === -1) projMig.push(['AddColumn', PROJECTS_TABLE, 'Ticket_SUMIT', { type: 'Text' }]);
       if (projMig.length) { await grist.docApi.applyUserActions(projMig); console.log('[GristPM] CreatedBy/CreatedAt ajoutés à PM_Projects'); }
     } catch (e) {
       console.log('[GristPM] Migration CreatedBy ignorée :', e.message);
@@ -2740,6 +2742,7 @@ async function loadAllData() {
       var serviceDemandeurCol = getColumnName('projects', 'serviceDemandeur');
       console.log('[DEBUG PROJECT] serviceDemandeurCol=', serviceDemandeurCol, 'statusCol=', statusCol, 'projData keys=', Object.keys(projData));
       var referentMetierCol = getColumnName('projects', 'referentMetier');
+      var ticketSumitCol = getColumnName('projects', 'ticketSumit');
       
       for (var i = 0; i < projData.id.length; i++) {
         projects.push({
@@ -2754,6 +2757,7 @@ async function loadAllData() {
           Start_Date: projData.Start_Date ? projData.Start_Date[i] : null,
           End_Date: projData.End_Date ? projData.End_Date[i] : null,
           Lead: projData.Lead ? projData.Lead[i] : '',
+          Ticket_SUMIT: ticketSumitCol && projData[ticketSumitCol] ? projData[ticketSumitCol][i] : '',
           CreatedBy: projData.CreatedBy ? projData.CreatedBy[i] : '',
           CreatedAt: projData.CreatedAt ? projData.CreatedAt[i] : ''
         });
@@ -9625,6 +9629,10 @@ function editProject(projectId) {
   var referentMetierEl = document.getElementById('project-referent-metier');
   if (referentMetierEl) referentMetierEl.value = proj.Referent_Metier || '';
   populateProjectLead(proj.Lead || '');
+
+  var ticketSumitEl = document.getElementById('project-ticket-sumit');
+  if (ticketSumitEl) ticketSumitEl.value = proj.Ticket_SUMIT || '';
+
   document.getElementById('project-form-title').textContent = t('editProject');
 }
 
@@ -9684,6 +9692,10 @@ async function saveProject() {
   var serviceDemandeur = serviceDemandeurEl ? serviceDemandeurEl.value : '';
   var referentMetierEl = document.getElementById('project-referent-metier');
   var referentMetier = referentMetierEl ? referentMetierEl.value.trim() : '';
+
+  var ticketSumitEl = document.getElementById('project-ticket-sumit');
+  var ticketSumit = ticketSumitEl ? ticketSumitEl.value.trim() : '';
+
   console.log('[SAVE PROJECT] Valeurs formulaire:', {
     projectId: projectId,
     name: name,
@@ -9735,6 +9747,7 @@ async function saveProject() {
     setField(record, 'projects', 'serviceDemandeur', serviceDemandeur);
     setField(record, 'projects', 'referentMetier', referentMetier);
     setField(record, 'projects', 'lead', lead);
+    setField(record, 'projects', 'ticketSumit', ticketSumit);
     
     if (projectId) {
       await grist.docApi.applyUserActions([
@@ -9779,6 +9792,10 @@ async function saveProject() {
     if (serviceElReset) serviceElReset.value = '';
     var referentMetierElReset = document.getElementById('project-referent-metier');
     if (referentMetierElReset) referentMetierElReset.value = '';
+
+    var ticketSumitReset = document.getElementById('project-ticket-sumit');
+    if (ticketSumitReset) ticketSumitReset.value = '';
+
     populateProjectLead('');
     document.getElementById('project-form-title').textContent = t('addProject');
   } catch (e) {
