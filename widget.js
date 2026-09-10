@@ -934,7 +934,7 @@ var columnMapping = {
     serviceDemandeur: 'SERVICE_DEMANDEUR',
     referentMetier: 'Referent_metier',
     lead: 'Lead',
-    ticketSumit: 'Ticket_SUMIT'
+    ticketSumit: 'Ticket_SUMIT2'
   },
   categories: {
     name: 'Name',
@@ -2178,7 +2178,7 @@ async function ensureTables() {
       if (projCols.indexOf('CreatedBy') === -1) projMig.push(['AddColumn', PROJECTS_TABLE, 'CreatedBy', { type: 'Text' }]);
       if (projCols.indexOf('CreatedAt') === -1) projMig.push(['AddColumn', PROJECTS_TABLE, 'CreatedAt', { type: 'Text' }]);
       if (projCols.indexOf('Lead') === -1) projMig.push(['AddColumn', PROJECTS_TABLE, 'Lead', { type: 'Text' }]);
-      if (projCols.indexOf('Ticket_SUMIT') === -1) projMig.push(['AddColumn', PROJECTS_TABLE, 'Ticket_SUMIT', { type: 'Text' }]);
+      if (projCols.indexOf('Ticket_SUMIT2') === -1) projMig.push(['AddColumn', PROJECTS_TABLE, 'Ticket_SUMIT2', { type: 'Text' }]);
       if (projMig.length) { await grist.docApi.applyUserActions(projMig); console.log('[GristPM] CreatedBy/CreatedAt ajoutés à PM_Projects'); }
     } catch (e) {
       console.error('[GristPM] ERREUR migration PM_Projects :', e);
@@ -2735,7 +2735,7 @@ async function loadAllData() {
 
   try {
     var projData = await grist.docApi.fetchTable(PROJECTS_TABLE);
-    console.log('[DEBUG TICKET SOURCE] PROJECTS_TABLE=', PROJECTS_TABLE, 'Ticket_SUMIT=', projData.Ticket_SUMIT);
+    console.log('[DEBUG TICKET SOURCE] PROJECTS_TABLE=', PROJECTS_TABLE, 'Ticket_SUMIT=', projData.Ticket_SUMIT2);
     projects = [];
     if (projData && projData.id) {
       var nameCol = getColumnName('projects', 'name');
@@ -2753,7 +2753,18 @@ async function loadAllData() {
           Name: projData[nameCol] ? projData[nameCol][i] : '',
           Description: projData[descCol] ? projData[descCol][i] : '',
           Color: projData[colorCol] ? projData[colorCol][i] : '#6366f1',
-          Status: projData[statusCol] ? projData[statusCol][i] : 'A valider',
+          Status: (function() {
+            var statusValue = projData[statusCol] ? projData[statusCol][i] : '';
+            if (statusValue !== null && statusValue !== undefined && /^\d+$/.test(String(statusValue))) {
+              var statusRef = tags.find(function(tag) {
+                return String(tag.id) === String(statusValue);
+              });
+              if (statusRef && statusRef.Name) {
+                return String(statusRef.Name).trim();
+              }
+            }
+            return statusValue || 'A valider';
+          })(),
 
           SERVICE_DEMANDEUR: serviceDemandeurCol && projData[serviceDemandeurCol] ? projData[serviceDemandeurCol][i] : '',
           Referent_Metier: referentMetierCol && projData[referentMetierCol] ? projData[referentMetierCol][i] : '',
