@@ -2181,7 +2181,9 @@ async function ensureTables() {
       if (projCols.indexOf('Ticket_SUMIT') === -1) projMig.push(['AddColumn', PROJECTS_TABLE, 'Ticket_SUMIT', { type: 'Text' }]);
       if (projMig.length) { await grist.docApi.applyUserActions(projMig); console.log('[GristPM] CreatedBy/CreatedAt ajoutés à PM_Projects'); }
     } catch (e) {
-      console.log('[GristPM] Migration CreatedBy ignorée :', e.message);
+      console.error('[GristPM] ERREUR migration PM_Projects :', e);
+      console.error('[GristPM] PROJECTS_TABLE =', PROJECTS_TABLE);
+      console.error('[GristPM] Colonnes détectées =', projCols);
     }
 
     // Create PM_Config table for column mapping configuration
