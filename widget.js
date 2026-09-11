@@ -9814,7 +9814,7 @@ async function saveProject() {
     setField(record, 'projects', 'status', status);
     setField(record, 'projects', 'serviceDemandeur', serviceDemandeur);
     setField(record, 'projects', 'referentMetier', referentMetier);
-    setField(record, 'projects', 'lead', lead);
+    record.Lead = lead;
     setField(record, 'projects', 'ticketSumit', ticketSumit);
     console.log('[TEST TICKET] record=', JSON.stringify(record));
     
