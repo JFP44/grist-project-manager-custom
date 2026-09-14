@@ -9020,6 +9020,8 @@ function renderStatsView() {
   if (statusChart) statusChart.innerHTML = statusHtml;
 
   // SERVICE DEMANDEUR chart
+  console.log("[DEBUG STATS PROJECTS]", JSON.stringify(filteredProjects));
+  console.log("[DEBUG STATS SERVICES]", JSON.stringify(filteredProjects.map(function(p) { return p.SERVICE_DEMANDEUR; })));
   var serviceCounts = {};
 
   filteredProjects.forEach(function(p) {
@@ -9069,7 +9071,7 @@ function renderStatsView() {
     serviceHtml = '<div style="text-align:center;color:#94a3b8;width:100%;">Aucune donnée</div>';
   }
 
-  var serviceChart = document.getElementById('chart-service-demandeur');
+  var serviceChart = document.getElementById('chart-priority');
   if (serviceChart) serviceChart.innerHTML = serviceHtml;
 
   // Assignee chart
