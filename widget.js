@@ -9008,10 +9008,12 @@ function renderStatsView() {
   STATUTS.forEach(function(s) {
     var count = statusCounts[s] || 0;
     var height = (count / maxStatus) * 160;
+    var statusTag = tags.find(function(tag) { return String(tag.Name || '').trim() === s; });
+    var statusColor = statusTag && statusTag.Color ? statusTag.Color : '#6366f1';
 
     statusHtml += '<div class="chart-bar">';
     statusHtml += '<span class="chart-bar-value">' + count + '</span>';
-    statusHtml += '<div class="chart-bar-fill" style="height:' + height + 'px;background:#6366f1"></div>';
+    statusHtml += '<div class="chart-bar-fill" style="height:' + height + 'px;background:' + sanitize(statusColor) + '"></div>'; 
     statusHtml += '<span class="chart-bar-label">' + sanitize(s) + '</span>';
     statusHtml += '</div>';
   });
