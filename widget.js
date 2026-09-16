@@ -9172,6 +9172,10 @@ function renderWorkloadChart() {
     if (task.Assignee && task.Status !== 'done') {
       task.Assignee.split(',').forEach(function(a) {
         var email = a.trim();
+          var user = users.find(function(u) {
+            return String(u.Email || "").trim().toLowerCase() === email.toLowerCase();
+          });
+          if (!user || (user.Role !== "Développeur" && user.Role !== "Administrateur")) return;
         var name = getUserDisplayName(email);
         if (!workloadData[name]) {
           workloadData[name] = {
@@ -9295,12 +9299,26 @@ function renderTimelineChart() {
   // Collect tasks per slot per agent (overlap-based: task active during slot)
   var agentColors = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16'];
   var allAgents = [];
-  var filteredTasks = getFilteredTasks().filter(function(t) { return t.Status !== 'done'; });
+  var filteredTasks = getFilteredTasks().filter(function(t) { return t.Status !== 'done'; }).filter(function(t) {
+    if (!t.Assignee) return false;
+    return t.Assignee.split(',').some(function(a) {
+      var email = a.trim();
+      var user = users.find(function(u) {
+        return String(u.Email || "").trim().toLowerCase() === email.toLowerCase();
+      });
+      return user && (user.Role === "Développeur" || user.Role === "Administrateur");
+    });
+  });
 
   filteredTasks.forEach(function(t) {
     if (!t.Assignee) return;
     t.Assignee.split(',').forEach(function(a) {
-      var name = getUserDisplayName(a.trim());
+      var email = a.trim();
+      var user = users.find(function(u) {
+        return String(u.Email || "").trim().toLowerCase() === email.toLowerCase();
+      });
+      if (!user || (user.Role !== "Développeur" && user.Role !== "Administrateur")) return;
+      var name = getUserDisplayName(email);
       if (allAgents.indexOf(name) === -1) allAgents.push(name);
     });
   });
