@@ -297,7 +297,6 @@ var i18n = {
     categoryDeleted: 'Catégorie supprimée',
     noCategories: 'Aucune catégorie',
     chartTimeline: 'Charge dans le temps par agent',
-    chartBurndown: 'Burndown / Burnup',
     burnRemaining: 'Restantes',
     burnCompleted: 'Terminées',
     burnIdeal: 'Idéal',
@@ -640,7 +639,6 @@ var i18n = {
     categoryDeleted: 'Category deleted',
     noCategories: 'No categories',
     chartTimeline: 'Workload over time per assignee',
-    chartBurndown: 'Burndown / Burnup',
     burnRemaining: 'Remaining',
     burnCompleted: 'Completed',
     burnIdeal: 'Ideal',
@@ -9161,7 +9159,6 @@ function renderStatsView() {
 
   // Workload chart - Risk of overload per user
   renderWorkloadChart();
-  renderBurndownChart();
   renderActivityLog();
 }
 
@@ -9369,101 +9366,6 @@ function renderTimelineChart() {
     html += '</div>';
   }
 
-  container.innerHTML = html;
-}
-
-function renderBurndownChart() {
-  var container = document.getElementById('chart-burndown');
-  if (!container) return;
-  var periodSel = document.getElementById('burndown-period');
-  var weeks = periodSel ? parseInt(periodSel.value) || 8 : 8;
-
-  var now = new Date();
-  var dayOfWeek = now.getDay();
-  var mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-  var thisMonday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + mondayOffset);
-  thisMonday.setHours(0, 0, 0, 0);
-
-  var allTasks = getFilteredTasks();
-  var labels = [];
-  var remaining = [];
-  var completed = [];
-
-  for (var w = weeks - 1; w >= 0; w--) {
-    var weekEnd = new Date(thisMonday.getTime() - (w * 7 * 86400000));
-    weekEnd.setDate(weekEnd.getDate() + 6);
-    weekEnd.setHours(23, 59, 59, 999);
-    var weekEndTs = Math.floor(weekEnd.getTime() / 1000);
-
-    var dd = String(weekEnd.getDate()).padStart(2, '0');
-    var mm = String(weekEnd.getMonth() + 1).padStart(2, '0');
-    labels.push(dd + '/' + mm);
-
-    var createdBefore = allTasks.filter(function(t) {
-      return t.Created_At && t.Created_At <= weekEndTs;
-    });
-
-    var doneByThen = createdBefore.filter(function(t) {
-      return t.Status === 'done';
-    }).length;
-
-    var totalByThen = createdBefore.length;
-    var remainByThen = totalByThen - doneByThen;
-
-    remaining.push(remainByThen);
-    completed.push(doneByThen);
-  }
-
-  var maxVal = Math.max.apply(null, remaining.concat(completed).concat([1]));
-  var chartH = 180;
-  var barW = Math.max(20, Math.floor(300 / weeks));
-
-  var html = '<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:10px;">';
-  html += '<span style="font-size:11px;display:flex;align-items:center;gap:4px;"><span style="display:inline-block;width:10px;height:10px;background:#ef4444;border-radius:2px;flex-shrink:0;"></span>' + t('burnRemaining') + '</span>';
-  html += '<span style="font-size:11px;display:flex;align-items:center;gap:4px;"><span style="display:inline-block;width:10px;height:10px;background:#22c55e;border-radius:2px;flex-shrink:0;"></span>' + t('burnCompleted') + '</span>';
-  html += '<span style="font-size:11px;display:flex;align-items:center;gap:4px;"><span style="display:inline-block;width:10px;height:10px;border:1.5px dashed #94a3b8;border-radius:2px;flex-shrink:0;"></span>' + t('burnIdeal') + '</span>';
-  html += '</div>';
-
-  html += '<div style="position:relative;height:' + (chartH + 30) + 'px;">';
-
-  // Ideal line (from max remaining at start to 0)
-  var startRemaining = remaining[0] || 0;
-  var svgW = labels.length * (barW + 8);
-  html += '<svg style="position:absolute;top:0;left:0;width:' + svgW + 'px;height:' + chartH + 'px;pointer-events:none;">';
-  for (var li = 0; li < labels.length - 1; li++) {
-    var x1 = li * (barW + 8) + barW / 2;
-    var x2 = (li + 1) * (barW + 8) + barW / 2;
-    var idealVal1 = startRemaining - (startRemaining / (labels.length - 1)) * li;
-    var idealVal2 = startRemaining - (startRemaining / (labels.length - 1)) * (li + 1);
-    var y1 = chartH - (idealVal1 / maxVal) * chartH;
-    var y2 = chartH - (idealVal2 / maxVal) * chartH;
-    html += '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="#94a3b8" stroke-dasharray="4,3" stroke-width="1.5"/>';
-  }
-  html += '</svg>';
-
-  // Bars
-  html += '<div style="display:flex;align-items:flex-end;gap:8px;height:' + chartH + 'px;">';
-  for (var bi = 0; bi < labels.length; bi++) {
-    var remH = (remaining[bi] / maxVal) * (chartH - 20);
-    var compH = (completed[bi] / maxVal) * (chartH - 20);
-    html += '<div style="display:flex;flex-direction:column;align-items:center;width:' + barW + 'px;">';
-    html += '<div style="font-size:9px;color:#64748b;margin-bottom:2px;">' + remaining[bi] + '</div>';
-    html += '<div style="width:100%;display:flex;flex-direction:column;gap:1px;">';
-    html += '<div style="height:' + remH + 'px;background:#ef4444;border-radius:3px 3px 0 0;min-height:2px;"></div>';
-    html += '<div style="height:' + compH + 'px;background:#22c55e;border-radius:0 0 3px 3px;min-height:2px;"></div>';
-    html += '</div>';
-    html += '</div>';
-  }
-  html += '</div>';
-
-  // Labels
-  html += '<div style="display:flex;gap:8px;margin-top:4px;">';
-  for (var lbi = 0; lbi < labels.length; lbi++) {
-    html += '<div style="width:' + barW + 'px;text-align:center;font-size:9px;color:#94a3b8;">' + labels[lbi] + '</div>';
-  }
-  html += '</div>';
-
-  html += '</div>';
   container.innerHTML = html;
 }
 
