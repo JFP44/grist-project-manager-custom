@@ -7548,14 +7548,60 @@ function renderRaciField(letter, label, selectSuffix, varName) {
   return html;
 }
 
+function autoFillTaskGroup(selectedValue) {
+  var selected = String(selectedValue || '').trim().toLowerCase();
+
+  var selectedUser = users.find(function(u) {
+    return String(u.Email || '').trim().toLowerCase() === selected ||
+           String(u.Name || '').trim().toLowerCase() === selected;
+  });
+
+
+  var groupName = String(selectedUser.Group_Name).trim();
+  var groupSelect = document.getElementById('task-group');
+
+  groupSelect.value = groupName;
+}
+
 function addRaciChip(varName, selectSuffix) {
   var sel = document.getElementById(selectSuffix + '-select');
   var arr = getRaciArray(varName);
-  var val = sel.value;
+  var val = sel ? sel.value : '';
+
   if (!val || arr.indexOf(val) !== -1) return;
+
+  // La première personne assignée détermine le groupe.
+  var isFirstAssignee = arr.length === 0;
+
   arr.push(val);
+
+  if (isFirstAssignee) {
+    var selectedUser = users.find(function(u) {
+      var selected = String(val || '').trim().toLowerCase();
+      var email = String(u.Email || '').trim().toLowerCase();
+      var name = String(u.Name || '').trim().toLowerCase();
+
+      return email === selected || name === selected;
+    });
+
+    if (selectedUser && selectedUser.Group_Name) {
+      var groupName = String(selectedUser.Group_Name).trim();
+      var groupSelect = document.getElementById('task-group');
+
+      if (groupSelect) {
+        for (var gi = 0; gi < groupSelect.options.length; gi++) {
+          if (String(groupSelect.options[gi].value || '').trim().toLowerCase() === groupName.toLowerCase()) {
+            groupSelect.selectedIndex = gi;
+            break;
+          }
+        }
+      }
+    }
+  }
+
   var container = document.getElementById(selectSuffix + '-chips');
   if (container) container.innerHTML = renderRaciChips(varName);
+
   sel.value = '';
 }
 
