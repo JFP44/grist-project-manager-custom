@@ -2812,15 +2812,12 @@ function renderProjectSelector() {
   var container = document.getElementById('project-selector');
   if (!container) return;
 
-  // Rôles disponibles (distincts, triés) — supports ChoiceList arrays
-  var roleSet = {};
-  users.forEach(function(u) { getUserRoles(u).forEach(function(r) { if (r) roleSet[r] = true; }); });
-  var roles = Object.keys(roleSet).sort();
-
-  // Personnes visibles selon le rôle sélectionné
-  var visibleUsers = currentFilterRole
-    ? users.filter(function(u) { return userMatchesRole(u, currentFilterRole); })
-    : users;
+  // Personnes visibles : uniquement Administrateur ou Développeur
+  var visibleUsers = users.filter(function(u) {
+    return getUserRoles(u).some(function(r) {
+      return r === 'Administrateur' || r === 'Développeur';
+    });
+  });
 
   // Projets visibles
   var visibleProjects = projects;
@@ -2841,10 +2838,6 @@ function renderProjectSelector() {
   }
 
   var html = '';
-
-  // Filtre Rôle
-  var roleOptions = roles.map(function(r) { return { value: r, label: roleLabel(r) }; });
-  html += buildFilterCombo('role', currentLang === 'fr' ? '— Rôle —' : '— Role —', roleOptions, currentFilterRole, filterByRole);
 
   // Filtre Personne
   var personOptions = [];
@@ -3293,7 +3286,7 @@ function sanitizeRestoredFilters() {
 function restoreFilters() {
   try {
     var s = JSON.parse(localStorage.getItem(filtersStorageKey()) || '{}');
-    currentFilterRole = s.role || null;
+    currentFilterRole = null;
     currentFilterAssignee = s.assignee || null;
     currentFilterServiceDemandeur = s.category || null;
     currentFilterTag = s.tag || null;
