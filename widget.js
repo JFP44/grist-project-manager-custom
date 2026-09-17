@@ -743,7 +743,7 @@ var currentFilterRole = null;
 var currentFilterAssignee = null; // user Name
 var currentFilterServiceDemandeur = null;
 var currentFilterTag = null;
-var mineOnly = false; // "Mes projets" : projets créés par moi OU où je suis assigné
+
 var activeTimers = {}; // taskId -> startTime (for running timers)
 var kanbanGroupBy = 'status'; // 'status' | 'priority' | 'project'
 var kanbanSort = 'manual'; // 'manual' | 'alpha' | 'alpha-desc' | 'due'
@@ -2821,20 +2821,17 @@ function renderProjectSelector() {
 
   // Projets visibles
   var visibleProjects = projects;
-  if (mineOnly) {
-    var myIds = myProjectIdSet();
-    visibleProjects = projects.filter(function (p) { return myIds[p.id]; });
-  }
+  // Tous les projets sont visibles ; le filtre Personne s'applique ensuite sur Lead.
   if (currentFilterAssignee) {
-    var projIdSet = {};
-    var selIdentSet = personIdentSet(currentFilterAssignee);
-    tasks.forEach(function(t) {
-      if (!t.Project_Id) return;
-      if (assigneeListHas(t.Assignee, selIdentSet)) projIdSet[t.Project_Id] = true;
+    var selectedEmail = String(currentFilterAssignee).trim().toLowerCase();
+
+    // Projets gérés par la personne :
+    // PM_Projects.Lead contient directement son adresse e-mail.
+    var filtered = visibleProjects.filter(function(p) {
+      return String(p.Lead || '').trim().toLowerCase() === selectedEmail;
     });
-    // Si aucune tâche associée, on laisse les projets courants (sinon UX bloquée)
-    var filtered = visibleProjects.filter(function(p) { return projIdSet[p.id]; });
-    if (filtered.length > 0) visibleProjects = filtered;
+
+    visibleProjects = filtered;
   }
 
   var html = '';
@@ -2910,12 +2907,7 @@ function renderProjectSelector() {
   }
   html += '</div></div></div>';
 
-  // Bouton "Mes projets" (créés par moi OU assigné à moi)
-  if (currentUserEmail) {
-    html += '<button class="btn-icon" onclick="toggleMyProjects()" title="' + (currentLang === 'fr' ? 'Mes projets : créés par moi ou qui me sont assignés' : 'My projects: created by or assigned to me') + '" style="width:auto;padding:0 12px;font-size:12px;font-weight:600;' + (mineOnly ? 'background:#6366f1;color:#fff;border-color:#6366f1;' : '') + '">👤 ' + (currentLang === 'fr' ? 'Mes projets' : 'My projects') + '</button>';
-  }
-
-  if (currentFilterRole || currentFilterAssignee || currentFilterServiceDemandeur || currentFilterTag || currentProjectId || mineOnly) {
+  if (currentFilterRole || currentFilterAssignee || currentFilterServiceDemandeur || currentFilterTag || currentProjectId) {
     html += '<button class="btn-icon" onclick="resetFilters()" title="' + (currentLang === 'fr' ? 'Réinitialiser les filtres' : 'Reset filters') + '" style="color:#ef4444;">✕</button>';
   }
 
@@ -2930,11 +2922,10 @@ function renderProjectSelector() {
     var appEl = document.querySelector('.app-container') || document.body;
     appEl.insertBefore(banner, appEl.firstChild);
   }
-  if (currentFilterRole || currentFilterAssignee || currentFilterServiceDemandeur || currentFilterTag || currentProjectId || mineOnly) {
+  if (currentFilterRole || currentFilterAssignee || currentFilterServiceDemandeur || currentFilterTag || currentProjectId) {
     var proj2 = currentProjectId ? projects.find(function(p) { return p.id === currentProjectId; }) : null;
     var c2 = (proj2 && proj2.Color) ? proj2.Color : '#6366f1';
     var bits = [];
-    if (mineOnly) bits.push('👤 ' + (currentLang === 'fr' ? 'Mes projets' : 'My projects'));
     if (currentFilterRole) bits.push('👔 ' + sanitize(roleLabel(currentFilterRole)));
     if (currentFilterAssignee) {
       var u = findUserByIdent(currentFilterAssignee);
@@ -3192,35 +3183,6 @@ function myAssigneeValue() {
   if (u) return u.Email || u.Name;
   return currentUserEmail; // repli : on tente l'email brut
 }
-// Ensemble des projets "à moi" : créés par moi OU contenant une tâche qui m'est assignée
-function myProjectIdSet() {
-  var em = (currentUserEmail || '').toLowerCase().trim();
-  var mine = myAssigneeValue();
-  var set = {};
-
-  // Projets personnels : créés par moi, responsable du projet
-  // ou contenant une tâche qui m'est assignée.
-  projects.forEach(function (p) {
-    if (em && (p.CreatedBy || '').toLowerCase().trim() === em) set[p.id] = true;
-    if (mine && (p.Lead || '') === mine) set[p.id] = true;
-  });
-
-  if (mine) tasks.forEach(function (tk) {
-    if (!tk.Project_Id) return;
-    var list = (tk.Assignee || '').split(',').map(function (s) { return s.trim(); });
-    if (list.indexOf(mine) !== -1) set[tk.Project_Id] = true;
-  });
-
-  return set;
-}
-// Bascule "Afficher seulement mes projets"
-function toggleMyProjects() {
-  mineOnly = !mineOnly;
-  persistFilters();
-  renderProjectSelector();
-  refreshAllViews();
-}
-
 // B1 : les filtres etaient stockes sous une cle globale, partagee par tous les
 // documents servis depuis la meme origine — d'ou des filtres qui « suivaient »
 // d'un document a l'autre. On prefixe desormais chaque cle par l'id du document.
@@ -3252,7 +3214,7 @@ function persistFilters() {
   try {
     localStorage.setItem(filtersStorageKey(), JSON.stringify({
       role: currentFilterRole, assignee: currentFilterAssignee,
-      category: currentFilterServiceDemandeur, tag: currentFilterTag, mineOnly: mineOnly
+      category: currentFilterServiceDemandeur, tag: currentFilterTag
     }));
   } catch (e) {}
 }
@@ -3290,7 +3252,6 @@ function restoreFilters() {
     currentFilterAssignee = s.assignee || null;
     currentFilterServiceDemandeur = s.category || null;
     currentFilterTag = s.tag || null;
-    mineOnly = !!s.mineOnly;
   } catch (e) {}
   try { var sp = localStorage.getItem(projectStorageKey()); currentProjectId = sp ? (parseInt(sp) || null) : null; } catch (e) {}
   sanitizeRestoredFilters();
@@ -3316,15 +3277,6 @@ function filterByRole(role) {
 
 function filterByAssignee(name) {
   currentFilterAssignee = name || null;
-  // Si le projet sélectionné n'a plus de tâches pour cette personne, le déselectionner
-  if (currentFilterAssignee && currentProjectId) {
-    var idSet = personIdentSet(currentFilterAssignee);
-    var match = tasks.some(function(t) {
-      if (Number(t.Project_Id) !== Number(currentProjectId)) return false;
-      return assigneeListHas(t.Assignee, idSet);
-    });
-    if (!match) currentProjectId = null;
-  }
   persistFilters();
   renderProjectSelector();
   refreshAllViews();
@@ -3349,7 +3301,6 @@ function resetFilters() {
   currentFilterAssignee = null;
   currentFilterServiceDemandeur = null;
   currentFilterTag = null;
-  mineOnly = false;
   currentProjectId = null;
   localStorage.setItem(projectStorageKey(), '');
   persistFilters();
@@ -3386,10 +3337,7 @@ function getFilteredTasks() {
     var tagKey = String(currentFilterTag).trim();
     result = result.filter(function(t) { return String(t.Tag || '').trim() === tagKey; });
   }
-  if (mineOnly && !currentProjectId) {
-    var myIds = myProjectIdSet();
-    result = result.filter(function(t) { return t.Project_Id && myIds[t.Project_Id]; });
-  }
+
   if (currentProjectId) {
     var cpid = Number(currentProjectId);
     result = result.filter(function(t) { return Number(t.Project_Id) === cpid; });
@@ -8973,34 +8921,35 @@ function renderStatsView() {
   // (les statistiques de cette vue portent sur les projets, pas les tâches)
   var filteredProjects = projects.slice();
 
-  if (currentFilterRole || currentFilterAssignee) {
-    var projectIdsFromPeopleFilters = {};
+  if (currentFilterRole) {
+    var projectIdsFromRoleFilter = {};
 
     var roleIdSet = {};
-    if (currentFilterRole) {
-      users.filter(function(u) {
-        return userMatchesRole(u, currentFilterRole);
-      }).forEach(function(u) {
-        if (u.Email) roleIdSet[String(u.Email).toLowerCase().trim()] = true;
-        if (u.Name) roleIdSet[String(u.Name).toLowerCase().trim()] = true;
-      });
-    }
-
-    var personIdSet = currentFilterAssignee
-      ? personIdentSet(currentFilterAssignee)
-      : null;
+    users.filter(function(u) {
+      return userMatchesRole(u, currentFilterRole);
+    }).forEach(function(u) {
+      if (u.Email) roleIdSet[String(u.Email).toLowerCase().trim()] = true;
+      if (u.Name) roleIdSet[String(u.Name).toLowerCase().trim()] = true;
+    });
 
     tasks.forEach(function(t) {
-      if (currentFilterRole && !assigneeListHas(t.Assignee, roleIdSet)) return;
-      if (currentFilterAssignee && !assigneeListHas(t.Assignee, personIdSet)) return;
+      if (!assigneeListHas(t.Assignee, roleIdSet)) return;
 
       if (t.Project_Id) {
-        projectIdsFromPeopleFilters[Number(t.Project_Id)] = true;
+        projectIdsFromRoleFilter[Number(t.Project_Id)] = true;
       }
     });
 
     filteredProjects = filteredProjects.filter(function(p) {
-      return projectIdsFromPeopleFilters[Number(p.id)];
+      return projectIdsFromRoleFilter[Number(p.id)];
+    });
+  }
+
+  if (currentFilterAssignee) {
+    var selectedPersonEmail = String(currentFilterAssignee).trim().toLowerCase();
+
+    filteredProjects = filteredProjects.filter(function(p) {
+      return String(p.Lead || '').trim().toLowerCase() === selectedPersonEmail;
     });
   }
 
