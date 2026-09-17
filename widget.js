@@ -1819,7 +1819,8 @@ async function ensureTables() {
           { id: 'Tag', type: 'Text' },
           { id: 'Recurrence', type: 'Choice', widgetOptions: JSON.stringify({ choices: ['none', 'daily', 'weekly', 'monthly'] }) },
           { id: 'Estimated_Hours', type: 'Numeric' },
-          { id: 'Created_At', type: 'Date' }
+          { id: 'Created_At', type: 'Date' },
+          { id: 'Completed_At', type: 'Date' }
         ]]
       ]);
     }
@@ -2267,6 +2268,10 @@ async function ensureTables() {
             ['AddColumn', TASKS_TABLE, 'Recurrence', { type: 'Choice', widgetOptions: JSON.stringify({ choices: ['none', 'daily', 'weekly', 'monthly'] }) }]
           ]);
         }
+
+        if (existingCols.indexOf('Completed_At') === -1) {
+          await grist.docApi.applyUserActions([['AddColumn', TASKS_TABLE, 'Completed_At', { type: 'Date' }]]);
+        }
         if (existingCols.indexOf('Estimated_Hours') === -1) {
           await grist.docApi.applyUserActions([
             ['AddColumn', TASKS_TABLE, 'Estimated_Hours', { type: 'Numeric' }]
@@ -2296,7 +2301,6 @@ async function ensureTables() {
           await grist.docApi.applyUserActions([['AddColumn', TASKS_TABLE, 'Auto_Extend', { type: 'Bool' }]]);
         }
       } catch (migrationErr) {
-        console.log('Migration check completed or columns already exist');
       }
     }
 
@@ -2419,6 +2423,7 @@ async function loadAllData() {
         task.Recurrence = taskData[recurrenceCol] ? taskData[recurrenceCol][i] : 'none';
         task.Estimated_Hours = taskData[estimatedHoursCol] ? taskData[estimatedHoursCol][i] : 0;
         task.Created_At = taskData[createdAtCol] ? taskData[createdAtCol][i] : null;
+        task.Completed_At = taskData.Completed_At ? taskData.Completed_At[i] : null;
         task.Project_Id = taskData[projectIdCol] ? taskData[projectIdCol][i] : null;
 
         task.Accountable = taskData.Accountable ? taskData.Accountable[i] || '' : '';
@@ -7629,8 +7634,15 @@ async function quickAction(taskId, newStatus) {
   }
 
   try {
+    var qaRecord = { Status: newStatus };
+    if (newStatus === 'done' && wasNotDone) {
+      qaRecord.Completed_At = Math.floor(Date.now() / 1000);
+    } else if (newStatus !== 'done' && task && task.Status === 'done') {
+      qaRecord.Completed_At = null;
+    }
+
     await grist.docApi.applyUserActions([
-      ['UpdateRecord', TASKS_TABLE, taskId, { Status: newStatus }]
+      ['UpdateRecord', TASKS_TABLE, taskId, qaRecord]
     ]);
     for (var i = 0; i < tasks.length; i++) {
       if (tasks[i].id === taskId) { tasks[i].Status = newStatus; break; }
@@ -8646,6 +8658,13 @@ async function updateTask(taskId) {
   setField(record, 'tasks', 'serviceDemandeur', document.getElementById('task-service-demandeur').value.trim());
   setField(record, 'tasks', 'projectId', projectId);
   setField(record, 'tasks', 'recurrence', newRecurrence);
+
+  // Date réelle de fin : mémorisée au passage à "done"
+  if (newStatus === 'done' && wasNotDone) {
+    record.Completed_At = Math.floor(Date.now() / 1000);
+  } else if (newStatus !== 'done' && task && task.Status === 'done') {
+    record.Completed_At = null;
+  }
   
   // Add Tag only if the element exists
   var tagEl = document.getElementById('task-tag');
@@ -9113,6 +9132,10 @@ function renderStatsView() {
   filteredTasks.forEach(function(task) {
     var tStart = task.Start_Date ? task.Start_Date : (task.Due_Date || null);
     var tEnd = task.Due_Date ? task.Due_Date : (task.Start_Date || null);
+    // Une tâche terminée utilise sa date réelle de fin plutôt que sa date prévue
+    if (task.Status === 'done' && task.Completed_At) {
+      tEnd = task.Completed_At;
+    }
     if (!tEnd) return;
     for (var d = 0; d < 7; d++) {
       var dayStart = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + d);
