@@ -2698,12 +2698,14 @@ async function loadAllData() {
     if (tagData && tagData.id) {
       var nameCol = getColumnName('tags', 'name');
       var colorCol = getColumnName('tags', 'color');
+      var labelCol = 'Libelle';
       
       for (var i = 0; i < tagData.id.length; i++) {
         tags.push({
           id: tagData.id[i],
           Name: tagData[nameCol] ? tagData[nameCol][i] : '',
-          Color: tagData[colorCol] ? tagData[colorCol][i] : '#6366f1'
+          Color: tagData[colorCol] ? tagData[colorCol][i] : '#6366f1',
+          Libelle: tagData[labelCol] ? tagData[labelCol][i] : ''
         });
       }
     }
@@ -9697,10 +9699,13 @@ function openProjectViewModal(projectId) {
 
   title.textContent = proj.Name || "Voir le projet";
 
-  var statusDef = PM_STATUTS.find(function(status) {
-    return String(status.name || '') === String(proj.Status || '');
+  var statusDef = tags.find(function(tag) {
+    return String(tag.Name || '').trim().toLowerCase() ===
+      String(proj.Status || '').trim().toLowerCase();
   });
-  var statusLabel = statusDef && statusDef.label ? statusDef.label : '';
+  var statusLabel = statusDef && statusDef.Libelle
+    ? String(statusDef.Libelle).trim()
+    : '';
 
   function formatProjectDate(value) {
     var d = new Date(Number(value) * 1000);
@@ -9752,11 +9757,15 @@ function openProjectViewModal(projectId) {
     sanitize(proj.Name || '') + '</div>';
 
   html += '<div style="font-size:15px;margin-bottom:6px;"><strong>Statut :</strong> ' +
-    sanitize(proj.Status || '') + '</div>';
+    '<span style="display:inline-block;padding:4px 10px;border-radius:6px;background:' +
+    sanitize((statusDef && statusDef.Color) || '#6366f1') +
+    ';color:white;font-weight:600;">' +
+    sanitize(proj.Status || '') +
+    '</span></div>';
 
   if (statusLabel) {
     html += '<div style="font-size:14px;color:#64748b;margin-bottom:12px;">' +
-      sanitize(statusLabel) + '</div>';
+      '<strong>Signification :</strong> ' + sanitize(statusLabel) + '</div>';
   }
 
   html += '</div>';
