@@ -931,8 +931,15 @@ var columnMapping = {
     status: 'Status',
     serviceDemandeur: 'SERVICE_DEMANDEUR',
     referentMetier: 'Referent_metier',
+    secondReferentMetier: 'c2eme_Referent_metier',
     lead: 'Lead',
-    ticketSumit: 'Ticket_SUMIT2'
+    secondLead: 'c2eme_Developpeur',
+    complexityIndex: 'Indice_de_complexite',
+    apiWorkflow: 'API_Workflow',
+    apiFormulaire: 'API_Formulaire',
+    miseEnLigne: 'Mise_en_ligne',
+    ticketSumit: 'Ticket_SUMIT2',
+    ticketSumitUrl: 'Ticket_SUMIT_URL'
   },
   categories: {
     name: 'Name',
@@ -2718,7 +2725,14 @@ async function loadAllData() {
       console.log('[DEBUG PROJECT] serviceDemandeurCol=', serviceDemandeurCol, 'statusCol=', statusCol, 'projData keys=', Object.keys(projData));
       console.log('[DEBUG SERVICES PROJECTS]', JSON.stringify(projData[serviceDemandeurCol]));
       var referentMetierCol = getColumnName('projects', 'referentMetier');
+      var secondReferentMetierCol = getColumnName('projects', 'secondReferentMetier');
       var ticketSumitCol = getColumnName('projects', 'ticketSumit');
+      var secondLeadCol = getColumnName('projects', 'secondLead');
+      var complexityIndexCol = getColumnName('projects', 'complexityIndex');
+      var apiWorkflowCol = getColumnName('projects', 'apiWorkflow');
+      var apiFormulaireCol = getColumnName('projects', 'apiFormulaire');
+      var miseEnLigneCol = getColumnName('projects', 'miseEnLigne');
+      var ticketSumitUrlCol = getColumnName('projects', 'ticketSumitUrl');
       
       for (var i = 0; i < projData.id.length; i++) {
         projects.push({
@@ -2741,10 +2755,17 @@ async function loadAllData() {
 
           SERVICE_DEMANDEUR: serviceDemandeurCol && projData[serviceDemandeurCol] ? projData[serviceDemandeurCol][i] : '',
           Referent_Metier: referentMetierCol && projData[referentMetierCol] ? projData[referentMetierCol][i] : '',
+          Second_Referent_Metier: secondReferentMetierCol && projData[secondReferentMetierCol] ? projData[secondReferentMetierCol][i] : '',
           Start_Date: projData.Start_Date ? projData.Start_Date[i] : null,
           End_Date: projData.End_Date ? projData.End_Date[i] : null,
           Lead: projData.Lead ? projData.Lead[i] : '',
+          Second_Lead: secondLeadCol && projData[secondLeadCol] ? projData[secondLeadCol][i] : '',
+          Complexity_Index: complexityIndexCol && projData[complexityIndexCol] ? projData[complexityIndexCol][i] : null,
+          API_Workflow: apiWorkflowCol && projData[apiWorkflowCol] ? projData[apiWorkflowCol][i] : false,
+          API_Formulaire: apiFormulaireCol && projData[apiFormulaireCol] ? projData[apiFormulaireCol][i] : false,
+          Mise_En_Ligne: miseEnLigneCol && projData[miseEnLigneCol] ? projData[miseEnLigneCol][i] : '',
           Ticket_SUMIT: ticketSumitCol && projData[ticketSumitCol] ? projData[ticketSumitCol][i] : '',
+          Ticket_SUMIT_URL: ticketSumitUrlCol && projData[ticketSumitUrlCol] ? projData[ticketSumitUrlCol][i] : '',
           CreatedBy: projData.CreatedBy ? projData.CreatedBy[i] : '',
           CreatedAt: projData.CreatedAt ? projData.CreatedAt[i] : ''
         });
@@ -9536,6 +9557,20 @@ function openProjectModal() {
   var referentMetierEl = document.getElementById('project-referent-metier');
   if (referentMetierEl) referentMetierEl.value = '';
   populateProjectLead('');
+  var secondReferentMetierEl = document.getElementById('project-second-referent-metier');
+  if (secondReferentMetierEl) secondReferentMetierEl.value = '';
+  var secondLeadReset = document.getElementById('project-second-lead');
+  if (secondLeadReset) secondLeadReset.value = '';
+  var complexityIndexReset = document.getElementById('project-complexity-index');
+  if (complexityIndexReset) complexityIndexReset.value = '';
+  var apiWorkflowReset = document.getElementById('project-api-workflow');
+  if (apiWorkflowReset) apiWorkflowReset.checked = false;
+  var apiFormulaireReset = document.getElementById('project-api-formulaire');
+  if (apiFormulaireReset) apiFormulaireReset.checked = false;
+  var miseEnLigneReset = document.getElementById('project-mise-en-ligne');
+  if (miseEnLigneReset) miseEnLigneReset.value = '';
+  var ticketSumitUrlReset = document.getElementById('project-ticket-sumit-url');
+  if (ticketSumitUrlReset) ticketSumitUrlReset.value = '';
   document.getElementById('project-form-title').textContent = t('addProject');
   var psearch = document.getElementById('project-search');
   if (psearch) psearch.value = '';
@@ -9618,10 +9653,31 @@ function editProject(projectId) {
   populateProjectServiceDemandeur(proj.SERVICE_DEMANDEUR || '');
   var referentMetierEl = document.getElementById('project-referent-metier');
   if (referentMetierEl) referentMetierEl.value = proj.Referent_Metier || '';
+
+  var secondReferentMetierEl = document.getElementById('project-second-referent-metier');
+  if (secondReferentMetierEl) secondReferentMetierEl.value = proj.Second_Referent_Metier || '';
+
   populateProjectLead(proj.Lead || '');
+
+  populateProjectSecondLead(proj.Second_Lead || '');
+
+  var complexityIndexEl = document.getElementById('project-complexity-index');
+  if (complexityIndexEl) complexityIndexEl.value = proj.Complexity_Index ?? '';
+
+  var apiWorkflowEl = document.getElementById('project-api-workflow');
+  if (apiWorkflowEl) apiWorkflowEl.checked = !!proj.API_Workflow;
+
+  var apiFormulaireEl = document.getElementById('project-api-formulaire');
+  if (apiFormulaireEl) apiFormulaireEl.checked = !!proj.API_Formulaire;
+
+  var miseEnLigneEl = document.getElementById('project-mise-en-ligne');
+  if (miseEnLigneEl) miseEnLigneEl.value = proj.Mise_En_Ligne || '';
 
   var ticketSumitEl = document.getElementById('project-ticket-sumit');
   if (ticketSumitEl) ticketSumitEl.value = proj.Ticket_SUMIT || '';
+
+  var ticketSumitUrlEl = document.getElementById('project-ticket-sumit-url');
+  if (ticketSumitUrlEl) ticketSumitUrlEl.value = proj.Ticket_SUMIT_URL || '';
 
   document.getElementById('project-form-title').textContent = t('editProject');
 }
@@ -9682,6 +9738,21 @@ async function saveProject() {
   var serviceDemandeur = serviceDemandeurEl ? serviceDemandeurEl.value : '';
   var referentMetierEl = document.getElementById('project-referent-metier');
   var referentMetier = referentMetierEl ? referentMetierEl.value.trim() : '';
+
+  var secondReferentMetierEl = document.getElementById('project-second-referent-metier');
+  var secondReferentMetier = secondReferentMetierEl ? secondReferentMetierEl.value.trim() : '';
+  var secondLeadEl = document.getElementById('project-second-lead');
+  var secondLead = secondLeadEl ? secondLeadEl.value : '';
+  var complexityIndexEl = document.getElementById('project-complexity-index');
+  var complexityIndex = complexityIndexEl ? complexityIndexEl.value : '';
+  var apiWorkflowEl = document.getElementById('project-api-workflow');
+  var apiWorkflow = apiWorkflowEl ? apiWorkflowEl.checked : false;
+  var apiFormulaireEl = document.getElementById('project-api-formulaire');
+  var apiFormulaire = apiFormulaireEl ? apiFormulaireEl.checked : false;
+  var miseEnLigneEl = document.getElementById('project-mise-en-ligne');
+  var miseEnLigne = miseEnLigneEl ? miseEnLigneEl.value.trim() : '';
+  var ticketSumitUrlEl = document.getElementById('project-ticket-sumit-url');
+  var ticketSumitUrl = ticketSumitUrlEl ? ticketSumitUrlEl.value.trim() : '';
 
   var ticketSumitEl = document.getElementById('project-ticket-sumit');
   var ticketSumit = ticketSumitEl ? ticketSumitEl.value.trim() : '';
@@ -9749,8 +9820,15 @@ async function saveProject() {
     setField(record, 'projects', 'status', status);
     setField(record, 'projects', 'serviceDemandeur', serviceDemandeur);
     setField(record, 'projects', 'referentMetier', referentMetier);
+    setField(record, 'projects', 'secondReferentMetier', secondReferentMetier);
+    setField(record, 'projects', 'secondLead', secondLead);
+    setField(record, 'projects', 'complexityIndex', complexityIndex);
+    setField(record, 'projects', 'apiWorkflow', apiWorkflow);
+    setField(record, 'projects', 'apiFormulaire', apiFormulaire);
+    setField(record, 'projects', 'miseEnLigne', miseEnLigne);
     record.Lead = lead;
     setField(record, 'projects', 'ticketSumit', ticketSumit);
+    setField(record, 'projects', 'ticketSumitUrl', ticketSumitUrl);
     console.log('[TEST TICKET] record=', JSON.stringify(record));
     
     if (projectId) {
@@ -9796,6 +9874,27 @@ async function saveProject() {
     if (serviceElReset) serviceElReset.value = '';
     var referentMetierElReset = document.getElementById('project-referent-metier');
     if (referentMetierElReset) referentMetierElReset.value = '';
+
+    var secondReferentMetierElReset = document.getElementById('project-second-referent-metier');
+    if (secondReferentMetierElReset) secondReferentMetierElReset.value = '';
+
+    var secondLeadReset = document.getElementById('project-second-lead');
+    if (secondLeadReset) secondLeadReset.value = '';
+
+    var complexityIndexReset = document.getElementById('project-complexity-index');
+    if (complexityIndexReset) complexityIndexReset.value = '';
+
+    var apiWorkflowReset = document.getElementById('project-api-workflow');
+    if (apiWorkflowReset) apiWorkflowReset.checked = false;
+
+    var apiFormulaireReset = document.getElementById('project-api-formulaire');
+    if (apiFormulaireReset) apiFormulaireReset.checked = false;
+
+    var miseEnLigneReset = document.getElementById('project-mise-en-ligne');
+    if (miseEnLigneReset) miseEnLigneReset.value = '';
+
+    var ticketSumitUrlReset = document.getElementById('project-ticket-sumit-url');
+    if (ticketSumitUrlReset) ticketSumitUrlReset.value = '';
 
     var ticketSumitReset = document.getElementById('project-ticket-sumit');
     if (ticketSumitReset) ticketSumitReset.value = '';

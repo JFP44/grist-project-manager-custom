@@ -4551,20 +4551,6 @@
             </div>
 
             <div class="form-group">
-              <label>Référent métier</label>
-              <div style="position:relative;">
-  <input type="text" id="project-referent-metier"
-         placeholder="Nom du référent métier..."
-         autocomplete="off"
-         oninput="filterProjectReferents(this.value)"
-         onfocus="filterProjectReferents(this.value)">
-  <div id="project-referent-suggestions"
-       style="display:none;position:absolute;left:0;right:0;top:100%;z-index:1000;background:white;border:1px solid #cbd5e1;border-radius:6px;max-height:180px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.15);">
-  </div>
-</div>
-            </div>
-
-            <div class="form-group">
               <label data-i18n="projectStatus">Statut</label>
               <select id="project-status">
                 <option value="A valider">A valider</option>
@@ -4579,17 +4565,84 @@
                 <option value="Archivé">Archivé</option>
               </select>
             </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Référent métier</label>
+              <div style="position:relative;">
+                <input type="text" id="project-referent-metier"
+                       placeholder="Nom du référent métier..."
+                       autocomplete="off"
+                       oninput="filterProjectReferents(this.value)"
+                       onfocus="filterProjectReferents(this.value)">
+                <div id="project-referent-suggestions"
+                     style="display:none;position:absolute;left:0;right:0;top:100%;z-index:1000;background:white;border:1px solid #cbd5e1;border-radius:6px;max-height:180px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.15);">
+                </div>
+              </div>
+            </div>
 
             <div class="form-group">
-              <label data-i18n="projectLead">Responsable</label>
+              <label>2ème Référent métier</label>
+              <div style="position:relative;">
+                <input type="text" id="project-second-referent-metier"
+                       placeholder="Nom du référent métier..."
+                       autocomplete="off">
+                <div id="project-second-referent-suggestions"
+                     style="display:none;position:absolute;left:0;right:0;top:100%;z-index:1000;background:white;border:1px solid #cbd5e1;border-radius:6px;max-height:180px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.15);">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>1er dev</label>
               <select id="project-lead"><option value="">--</option></select>
             </div>
 
             <div class="form-group">
+              <label>2ème dev</label>
+              <select id="project-second-lead"><option value="">--</option></select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Indice de complexité</label>
+              <input type="number" id="project-complexity-index" placeholder="Indice">
+            </div>
+
+            <div class="form-group">
+              <label>Type de campagne</label>
+              <input type="text" id="project-mise-en-ligne" placeholder="Type de campagne">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>API Workflow</label>
+              <input type="checkbox" id="project-api-workflow">
+            </div>
+
+            <div class="form-group">
+              <label>API Formulaire</label>
+              <input type="checkbox" id="project-api-formulaire">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
               <label>Ticket_SUMIT</label>
               <input type="text" id="project-ticket-sumit" placeholder="Ticket_SUMIT">
             </div>
+
+            <div class="form-group">
+              <label>Ticket_SUMIT URL</label>
+              <input type="text" id="project-ticket-sumit-url" placeholder="https://...">
+            </div>
           </div>
+
           <button class="btn btn-primary" onclick="saveProject()">💾 <span data-i18n="save">Enregistrer</span></button>
         </div>
       </div>
