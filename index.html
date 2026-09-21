@@ -4587,7 +4587,10 @@
               <div style="position:relative;">
                 <input type="text" id="project-second-referent-metier"
                        placeholder="Nom du référent métier..."
-                       autocomplete="off">
+                       autocomplete="off"
+                       oninput="filterProjectSecondReferents(this.value)"
+                       onfocus="filterProjectSecondReferents(this.value)"
+                       onblur="setTimeout(function(){document.getElementById('project-second-referent-suggestions').style.display='none';},150)">
                 <div id="project-second-referent-suggestions"
                      style="display:none;position:absolute;left:0;right:0;top:100%;z-index:1000;background:white;border:1px solid #cbd5e1;border-radius:6px;max-height:180px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.15);">
                 </div>

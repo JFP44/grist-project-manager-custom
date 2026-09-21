@@ -9529,6 +9529,26 @@ function populateProjectLead(selectedValue) {
   sel.innerHTML = html;
 }
 
+function populateProjectSecondLead(selectedValue) {
+  var sel = document.getElementById('project-second-lead');
+
+  var html = '<option value="">--</option>';
+
+  users.filter(function (u) {
+    return (u.Role === 'Développeur' || u.Role === 'Administrateur') && (u.Name || u.Email);
+  }).forEach(function (u) {
+    var val = u.Email || u.Name;
+    var label = u.Name || u.Email;
+    var selected = String(val) === String(selectedValue || '') ? ' selected' : '';
+
+    html += '<option value="' + sanitize(val) + '"' + selected + '>' +
+      sanitize(label) +
+      '</option>';
+  });
+
+  sel.innerHTML = html;
+}
+
 function populateProjectServiceDemandeur(selectedValue) {
   var input = document.getElementById('project-service-demandeur');
   var list = document.getElementById('project-service-demandeur-list');
@@ -9559,8 +9579,7 @@ function openProjectModal() {
   populateProjectLead('');
   var secondReferentMetierEl = document.getElementById('project-second-referent-metier');
   if (secondReferentMetierEl) secondReferentMetierEl.value = '';
-  var secondLeadReset = document.getElementById('project-second-lead');
-  if (secondLeadReset) secondLeadReset.value = '';
+  populateProjectSecondLead('');
   var complexityIndexReset = document.getElementById('project-complexity-index');
   if (complexityIndexReset) complexityIndexReset.value = '';
   var apiWorkflowReset = document.getElementById('project-api-workflow');
@@ -9718,6 +9737,50 @@ function filterProjectReferents(value) {
 function selectProjectReferent(name) {
   var input = document.getElementById('project-referent-metier');
   var box = document.getElementById('project-referent-suggestions');
+
+  if (input) input.value = name;
+  if (box) {
+    box.innerHTML = '';
+    box.style.display = 'none';
+  }
+}
+
+function filterProjectSecondReferents(value) {
+  var input = document.getElementById('project-second-referent-metier');
+  var box = document.getElementById('project-second-referent-suggestions');
+  if (!input || !box) return;
+
+  var search = String(value || '').trim().toLowerCase();
+
+  var referents = users.filter(function(u) {
+    return u.Role === 'Référent métier' && u.Name;
+  });
+
+  if (search) {
+    referents = referents.filter(function(u) {
+      return String(u.Name).toLowerCase().startsWith(search);
+    });
+  }
+
+  if (!referents.length) {
+    box.innerHTML = '';
+    box.style.display = 'none';
+    return;
+  }
+
+  box.innerHTML = referents.map(function(u) {
+    var name = String(u.Name).replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+    return '<div style="padding:8px 10px;cursor:pointer;border-bottom:1px solid #e2e8f0;" ' +
+      'onmousedown="selectProjectSecondReferent(\'' + name.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + '\')">' +
+      name + '</div>';
+  }).join('');
+
+  box.style.display = 'block';
+}
+
+function selectProjectSecondReferent(name) {
+  var input = document.getElementById('project-second-referent-metier');
+  var box = document.getElementById('project-second-referent-suggestions');
 
   if (input) input.value = name;
   if (box) {
