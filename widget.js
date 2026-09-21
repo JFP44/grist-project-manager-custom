@@ -9754,13 +9754,11 @@ function openProjectViewModal(projectId) {
   var html = '<div style="padding:20px;">';
 
   // 1. EN-TÊTE
-  html += '<div style="border-bottom:1px solid #e2e8f0;padding-bottom:20px;margin-bottom:20px;">';
+  html += '<div style="border:1px solid #e2e8f0;border-radius:10px;padding:18px 20px;margin-bottom:18px;background:#ffffff;">';
 
   html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:20px;">';
 
   html += '<div style="flex:1;">';
-  html += '<div style="font-size:24px;font-weight:700;margin-bottom:10px;">' +
-    sanitize(proj.Name || '') + '</div>';
 
   html += '<div style="font-size:15px;margin-bottom:6px;"><strong>Statut :</strong> ' +
     '<span style="display:inline-block;padding:4px 10px;border-radius:6px;background:' +
@@ -9801,7 +9799,7 @@ function openProjectViewModal(projectId) {
   html += '</div>';
 
   // 2. INFORMATIONS DU PROJET
-  html += '<div style="margin-bottom:24px;">';
+  html += '<div style="border:1px solid #e2e8f0;border-radius:10px;padding:18px 20px;margin-bottom:18px;background:#ffffff;">';
   html += '<div style="font-size:18px;font-weight:700;margin-bottom:14px;">Informations du projet</div>';
 
   html += '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 24px;font-size:14px;">';
@@ -9844,7 +9842,7 @@ function openProjectViewModal(projectId) {
   html += '</div>';
 
   // 3. AVANCEMENT
-  html += '<div>';
+  html += '<div style="border:1px solid #e2e8f0;border-radius:10px;padding:18px 20px;background:#ffffff;">';
   html += '<div style="font-size:18px;font-weight:700;margin-bottom:14px;">Avancement</div>';
 
   html += '<div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:16px;">';
