@@ -938,6 +938,8 @@ var columnMapping = {
     apiWorkflow: 'API_Workflow',
     apiFormulaire: 'API_Formulaire',
     miseEnLigne: 'Mise_en_ligne',
+    startDate: 'Start_Date',
+    endDate: 'End_Date',
     ticketSumit: 'Ticket_SUMIT2',
     ticketSumitUrl: 'Ticket_SUMIT_URL'
   },
@@ -9605,6 +9607,10 @@ function openProjectModal() {
   populateProjectSecondLead('');
   var complexityIndexReset = document.getElementById('project-complexity-index');
   if (complexityIndexReset) complexityIndexReset.value = '';
+  var startDateReset = document.getElementById('project-start-date');
+  if (startDateReset) startDateReset.value = '';
+  var endDateReset = document.getElementById('project-end-date');
+  if (endDateReset) endDateReset.value = '';
   var apiWorkflowReset = document.getElementById('project-api-workflow');
   if (apiWorkflowReset) apiWorkflowReset.checked = false;
   var apiFormulaireReset = document.getElementById('project-api-formulaire');
@@ -9866,6 +9872,16 @@ function openProjectViewModal(projectId) {
   modal.style.display = "flex";
 }
 
+function formatDateForProjectInput(value) {
+  if (value === null || value === undefined || value === '') return '';
+  var d = new Date(Number(value) * 1000);
+  if (isNaN(d.getTime())) return '';
+  var y = d.getFullYear();
+  var m = String(d.getMonth() + 1).padStart(2, '0');
+  var day = String(d.getDate()).padStart(2, '0');
+  return y + '-' + m + '-' + day;
+}
+
 function editProject(projectId) {
   var proj = projects.find(function(p) { return p.id === projectId; });
   if (!proj) return;
@@ -9888,6 +9904,12 @@ function editProject(projectId) {
 
   var complexityIndexEl = document.getElementById('project-complexity-index');
   if (complexityIndexEl) complexityIndexEl.value = proj.Complexity_Index ?? '';
+
+  var startDateEl = document.getElementById('project-start-date');
+  if (startDateEl) startDateEl.value = formatDateForProjectInput(proj.Start_Date);
+
+  var endDateEl = document.getElementById('project-end-date');
+  if (endDateEl) endDateEl.value = formatDateForProjectInput(proj.End_Date);
 
   var apiWorkflowEl = document.getElementById('project-api-workflow');
   if (apiWorkflowEl) apiWorkflowEl.checked = !!proj.API_Workflow;
@@ -10015,6 +10037,10 @@ async function saveProject() {
   var secondLead = secondLeadEl ? secondLeadEl.value : '';
   var complexityIndexEl = document.getElementById('project-complexity-index');
   var complexityIndex = complexityIndexEl ? complexityIndexEl.value : '';
+  var startDateEl = document.getElementById('project-start-date');
+  var startDate = startDateEl ? startDateEl.value : '';
+  var endDateEl = document.getElementById('project-end-date');
+  var endDate = endDateEl ? endDateEl.value : '';
   var apiWorkflowEl = document.getElementById('project-api-workflow');
   var apiWorkflow = apiWorkflowEl ? apiWorkflowEl.checked : false;
   var apiFormulaireEl = document.getElementById('project-api-formulaire');
@@ -10093,6 +10119,8 @@ async function saveProject() {
     setField(record, 'projects', 'secondReferentMetier', secondReferentMetier);
     setField(record, 'projects', 'secondLead', secondLead);
     setField(record, 'projects', 'complexityIndex', complexityIndex);
+    setField(record, 'projects', 'startDate', startDate ? Math.floor(new Date(startDate + 'T00:00:00').getTime() / 1000) : null);
+    setField(record, 'projects', 'endDate', endDate ? Math.floor(new Date(endDate + 'T00:00:00').getTime() / 1000) : null);
     setField(record, 'projects', 'apiWorkflow', apiWorkflow);
     setField(record, 'projects', 'apiFormulaire', apiFormulaire);
     setField(record, 'projects', 'miseEnLigne', miseEnLigne);
