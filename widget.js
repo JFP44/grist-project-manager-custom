@@ -2472,6 +2472,23 @@ async function loadAllData() {
     users = [];
   }
 
+  // Charger les statuts et leur libellé depuis PM_Statuts
+  try {
+    var statusData = await grist.docApi.fetchTable('PM_Statuts');
+    PM_STATUTS = [];
+    if (statusData && statusData.id) {
+      for (var i = 0; i < statusData.id.length; i++) {
+        PM_STATUTS.push({
+          id: statusData.id[i],
+          name: statusData.Name ? statusData.Name[i] : '',
+          label: statusData.Libellé ? statusData.Libellé[i] : ''
+        });
+      }
+    }
+  } catch (e) {
+    PM_STATUTS = [];
+  }
+
   try {
     var groupData = await grist.docApi.fetchTable(GROUPS_TABLE);
     groups = [];
@@ -3187,6 +3204,10 @@ function selectProjectOption(projectId) {
   if (dd) dd.classList.remove('show');
   if (btn) btn.classList.remove('open');
   filterByProject(projectId);
+
+  if (projectId) {
+    openProjectViewModal(parseInt(projectId));
+  }
 }
 
 function filterByProject(projectId) {
@@ -9632,7 +9653,7 @@ function renderProjectList() {
   html = '<div class="project-items">';
   shown.forEach(function(proj) {
     var taskCount = filteredTasks.filter(function(t) { return t.Project_Id === proj.id; }).length;
-    html += '<div class="project-item" style="border-left: 4px solid ' + (proj.Color || '#6366f1') + ';">';
+    html += '<div class="project-item" onclick="openProjectViewModal(' + proj.id + ')" style="border-left: 4px solid ' + (proj.Color || '#6366f1') + ';cursor:pointer;">';
     html += '<div class="project-item-info">';
     html += '<strong>' + sanitize(proj.Name) + '</strong>';
     var metaTxt = taskCount + ' ' + (currentLang === 'fr' ? 'tâches' : 'tasks');
@@ -9658,6 +9679,182 @@ function renderProjectList() {
   }
 
   document.getElementById('project-list').innerHTML = html;
+}
+
+function closeProjectViewModal() {
+  var modal = document.getElementById("project-view-modal");
+  if (modal) modal.style.display = "none";
+}
+
+function openProjectViewModal(projectId) {
+  var proj = projects.find(function(p) { return p.id === projectId; });
+  if (!proj) return;
+
+  var modal = document.getElementById("project-view-modal");
+  var title = document.getElementById("project-view-title");
+  var content = document.getElementById("project-view-content");
+  if (!modal || !title || !content) return;
+
+  title.textContent = proj.Name || "Voir le projet";
+
+  var statusDef = PM_STATUTS.find(function(status) {
+    return String(status.name || '') === String(proj.Status || '');
+  });
+  var statusLabel = statusDef && statusDef.label ? statusDef.label : '';
+
+  function formatProjectDate(value) {
+    var d = new Date(Number(value) * 1000);
+    if (isNaN(d.getTime())) return String(value);
+    return d.toLocaleDateString('fr-FR');
+  }
+
+  function displayValue(value) {
+    return value !== null && value !== undefined && String(value).trim() !== ''
+      ? sanitize(String(value))
+      : '<span style="color:#94a3b8;">Non renseigné</span>';
+  }
+
+  var projectTasks = tasks.filter(function(task) {
+    return String(task.Project_Id || '') === String(proj.id);
+  });
+
+  var totalTasks = projectTasks.length;
+  var todoTasks = projectTasks.filter(function(task) {
+    return String(task.Status || '').toLowerCase() === 'todo';
+  }).length;
+  var progressTasks = projectTasks.filter(function(task) {
+    return String(task.Status || '').toLowerCase() === 'progress';
+  }).length;
+  var doneTasks = projectTasks.filter(function(task) {
+    return String(task.Status || '').toLowerCase() === 'done';
+  }).length;
+
+  var now = Math.floor(Date.now() / 1000);
+  var lateTasks = projectTasks.filter(function(task) {
+    return String(task.Status || '').toLowerCase() !== 'done' &&
+      task.Due_Date &&
+      Number(task.Due_Date) < now;
+  }).length;
+
+  var completion = totalTasks > 0
+    ? Math.round((doneTasks / totalTasks) * 100)
+    : 0;
+
+  var html = '<div style="padding:20px;">';
+
+  // 1. EN-TÊTE
+  html += '<div style="border-bottom:1px solid #e2e8f0;padding-bottom:20px;margin-bottom:20px;">';
+
+  html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:20px;">';
+
+  html += '<div style="flex:1;">';
+  html += '<div style="font-size:24px;font-weight:700;margin-bottom:10px;">' +
+    sanitize(proj.Name || '') + '</div>';
+
+  html += '<div style="font-size:15px;margin-bottom:6px;"><strong>Statut :</strong> ' +
+    sanitize(proj.Status || '') + '</div>';
+
+  if (statusLabel) {
+    html += '<div style="font-size:14px;color:#64748b;margin-bottom:12px;">' +
+      sanitize(statusLabel) + '</div>';
+  }
+
+  html += '</div>';
+
+  html += '<button class="btn" style="background:#f59e0b;color:white;border:none;" onclick="closeProjectViewModal();editProject(' +
+    proj.id + ')">✏️ Modifier</button>';
+
+  html += '<button class="btn" onclick="closeProjectViewModal()" style="margin-left:8px;background:#dc2626;color:white;border:none;">Fermer</button>';
+
+  html += '</div>';
+
+  html += '<div style="display:flex;gap:24px;flex-wrap:wrap;font-size:14px;">';
+
+  html += '<div><strong>Date de début :</strong> ' +
+    (proj.Start_Date ? sanitize(formatProjectDate(proj.Start_Date)) : '<span style="color:#94a3b8;">Non renseignée</span>') +
+    '</div>';
+
+  html += '<div><strong>Date de fin :</strong> ' +
+    (proj.End_Date ? sanitize(formatProjectDate(proj.End_Date)) : '<span style="color:#94a3b8;">Non renseignée</span>') +
+    '</div>';
+
+  html += '<div><strong>Couleur :</strong> ' +
+    '<span style="display:inline-block;width:18px;height:18px;border-radius:4px;background:' +
+    sanitize(proj.Color || '#6366f1') + ';vertical-align:middle;"></span></div>';
+
+  html += '</div>';
+  html += '</div>';
+
+  // 2. INFORMATIONS DU PROJET
+  html += '<div style="margin-bottom:24px;">';
+  html += '<div style="font-size:18px;font-weight:700;margin-bottom:14px;">Informations du projet</div>';
+
+  html += '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 24px;font-size:14px;">';
+
+  // Service demandeur : ligne complète
+  html += '<div style="grid-column:1 / -1;"><strong>Service demandeur :</strong> ' + displayValue(proj.SERVICE_DEMANDEUR) + '</div>';
+
+  // Référents métier : même ligne
+  html += '<div><strong>1er référent métier :</strong> ' + displayValue(proj.Referent_Metier) + '</div>';
+  html += '<div><strong>2ème référent métier :</strong> ' + displayValue(proj.Second_Referent_Metier) + '</div>';
+
+  // Développeurs : même ligne
+  html += '<div><strong>Dev 1 :</strong> ' + displayValue(proj.Lead) + '</div>';
+  html += '<div><strong>Dev 2 :</strong> ' + displayValue(proj.Second_Lead) + '</div>';
+
+  // Complexité / campagne : même ligne
+  html += '<div><strong>Indice de complexité :</strong> ' + displayValue(proj.Complexity_Index) + '</div>';
+  html += '<div><strong>Type de campagne :</strong> ' + displayValue(proj.Mise_En_Ligne) + '</div>';
+
+  // API : même ligne
+  html += '<div><strong>API Workflow :</strong> ' + (proj.API_Workflow ? 'Oui' : 'Non') + '</div>';
+  html += '<div><strong>API Formulaire :</strong> ' + (proj.API_Formulaire ? 'Oui' : 'Non') + '</div>';
+
+  // Ticket SUMIT / URL : même ligne
+  html += '<div><strong>Ticket SUMIT :</strong> ' + displayValue(proj.Ticket_SUMIT) + '</div>';
+
+  if (proj.Ticket_SUMIT_URL) {
+    var sumitUrl = String(proj.Ticket_SUMIT_URL).trim();
+    if (!/^https?:\/\//i.test(sumitUrl)) {
+      sumitUrl = 'https://' + sumitUrl;
+    }
+    html += '<div><strong>Lien Ticket SUMIT :</strong> ' +
+      '<a href="' + sanitize(sumitUrl) + '" target="_blank" rel="noopener noreferrer">🔗 Ouvrir le ticket</a></div>';
+  } else {
+    html += '<div><strong>Lien Ticket SUMIT :</strong> ' +
+      '<span style="color:#94a3b8;">Non renseigné</span></div>';
+  }
+
+  html += '</div>';
+  html += '</div>';
+
+  // 3. AVANCEMENT
+  html += '<div>';
+  html += '<div style="font-size:18px;font-weight:700;margin-bottom:14px;">Avancement</div>';
+
+  html += '<div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:16px;">';
+
+  html += '<div><strong>' + totalTasks + '</strong><br><span style="font-size:12px;color:#64748b;">Total</span></div>';
+  html += '<div><strong>' + todoTasks + '</strong><br><span style="font-size:12px;color:#64748b;">À faire</span></div>';
+  html += '<div><strong>' + progressTasks + '</strong><br><span style="font-size:12px;color:#64748b;">En cours</span></div>';
+  html += '<div><strong>' + doneTasks + '</strong><br><span style="font-size:12px;color:#64748b;">Terminées</span></div>';
+  html += '<div><strong>' + lateTasks + '</strong><br><span style="font-size:12px;color:#64748b;">En retard</span></div>';
+
+  html += '</div>';
+
+  html += '<div style="font-size:14px;margin-bottom:6px;"><strong>Pourcentage d’avancement :</strong> ' +
+    completion + '%</div>';
+
+  html += '<div style="height:10px;background:#e2e8f0;border-radius:999px;overflow:hidden;">';
+  html += '<div style="height:100%;width:' + completion + '%;background:#22c55e;"></div>';
+  html += '</div>';
+
+  html += '</div>';
+
+  html += '</div>';
+
+  content.innerHTML = html;
+  modal.style.display = "flex";
 }
 
 function editProject(projectId) {
@@ -9699,6 +9896,7 @@ function editProject(projectId) {
   if (ticketSumitUrlEl) ticketSumitUrlEl.value = proj.Ticket_SUMIT_URL || '';
 
   document.getElementById('project-form-title').textContent = t('editProject');
+  document.getElementById('project-modal').style.display = 'flex';
 }
 
 function filterProjectReferents(value) {
