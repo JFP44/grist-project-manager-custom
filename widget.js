@@ -2978,7 +2978,7 @@ function renderProjectSelector() {
     if (currentFilterTag) bits.push('🏷️ ' + sanitize(currentFilterTag));
     if (proj2) bits.push('🎯 ' + sanitize(proj2.Name));
     banner.innerHTML = (currentLang === 'fr' ? 'Filtres actifs : ' : 'Active filters: ') + '<strong>' + bits.join(' › ') + '</strong> — <a href="#" onclick="resetFilters();return false;" style="color:inherit;text-decoration:underline;">' + (currentLang === 'fr' ? 'Tout effacer' : 'Clear all') + '</a>';
-    banner.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 16px;background:' + c2 + '15;border-bottom:2px solid' + c2 + ';color:' + c2 + ';font-size:12px;font-weight:600;';
+    banner.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 16px;background:#ffffff;border-bottom:2px solid ' + c2 + ';color:' + c2 + ';font-size:12px;font-weight:600;';
   } else {
     banner.style.display = 'none';
   }
@@ -9663,7 +9663,7 @@ function renderProjectList() {
     var taskCount = filteredTasks.filter(function(t) { return t.Project_Id === proj.id; }).length;
     html += '<div class="project-item" onclick="openProjectViewModal(' + proj.id + ')" style="border-left: 4px solid ' + (proj.Color || '#6366f1') + ';cursor:pointer;">';
     html += '<div class="project-item-info">';
-    html += '<strong>' + sanitize(proj.Name) + '</strong>';
+    html += '<strong style="color:' + sanitize(proj.Color || '#1e293b') + ';background:#ffffff;">' + sanitize(proj.Name) + '</strong>';
     var metaTxt = taskCount + ' ' + (currentLang === 'fr' ? 'tâches' : 'tasks');
     if (proj.Lead) metaTxt += ' · 👤 ' + (currentLang === 'fr' ? 'resp. ' : 'lead ') + sanitize(getUserDisplayName(proj.Lead));
     if (proj.CreatedBy) metaTxt += ' · ' + (currentLang === 'fr' ? 'créé par ' : 'created by ') + sanitize(getUserDisplayName(proj.CreatedBy));
@@ -9704,6 +9704,7 @@ function openProjectViewModal(projectId) {
   if (!modal || !title || !content) return;
 
   title.textContent = proj.Name || "Voir le projet";
+  title.style.color = proj.Color || "#1e293b";
 
   var statusDef = tags.find(function(tag) {
     return String(tag.Name || '').trim().toLowerCase() ===
