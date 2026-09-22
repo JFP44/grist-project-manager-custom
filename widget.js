@@ -9752,7 +9752,13 @@ function openProjectViewModal(projectId) {
     ? Math.round((doneTasks / totalTasks) * 100)
     : 0;
 
-  var html = '<div style="padding:20px;">';
+  var html = '<div style="padding:20px;background:#f8fafc;">';
+
+  // 2. DESCRIPTION DU PROJET
+  html += '<div style="border:1px solid #cbd5e1;border-radius:10px;padding:18px 20px;margin-bottom:18px;background:#ffffff;">';
+  html += '<div style="font-size:18px;font-weight:700;margin-bottom:10px;">Description</div>';
+  html += '<div style="font-size:14px;line-height:1.5;white-space:pre-wrap;">' + displayValue(proj.Description) + '</div>';
+  html += '</div>';
 
   // 1. EN-TÊTE
   html += '<div style="border:1px solid #cbd5e1;border-radius:10px;padding:18px 20px;margin-bottom:18px;background:#ffffff;">';
@@ -9799,7 +9805,7 @@ function openProjectViewModal(projectId) {
   html += '</div>';
   html += '</div>';
 
-  // 2. INFORMATIONS DU PROJET
+  // 3. INFORMATIONS DU PROJET
   html += '<div style="border:1px solid #cbd5e1;border-radius:10px;padding:18px 20px;margin-bottom:18px;background:#ffffff;">';
   html += '<div style="font-size:18px;font-weight:700;margin-bottom:14px;">Informations du projet</div>';
 
