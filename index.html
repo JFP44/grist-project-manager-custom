@@ -4277,15 +4277,15 @@
               <p data-i18n="teamUsersSubtitle">Gérez les membres de votre équipe</p>
             </div>
             <div style="display:flex;gap:8px;">
-              <button class="btn btn-secondary btn-sm" onclick="openManageRolesModal()" title="Gérer les rôles" data-i18n-title="manageRolesTitle">⚙️ <span data-i18n="manageRoles">Rôles</span></button>
-              <button class="btn btn-primary btn-sm" onclick="openNewUserModal()">+ <span data-i18n="addUser">Ajouter</span></button>
+              <button id="team-manage-roles" class="btn btn-secondary btn-sm" onclick="openManageRolesModal()" title="Gérer les rôles" data-i18n-title="manageRolesTitle">⚙️ <span data-i18n="manageRoles">Rôles</span></button>
+              <button id="team-add-user" class="btn btn-primary btn-sm" onclick="openNewUserModal()">+ <span data-i18n="addUser">Ajouter</span></button>
             </div>
           </div>
           <div id="users-list"></div>
         </div>
 
         <!-- GROUPS SECTION -->
-        <div>
+        <div id="team-groups-section">
           <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;">
             <div>
               <h2 data-i18n="teamGroupsTitle">Groupes</h2>

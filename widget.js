@@ -841,6 +841,7 @@ async function loadSettings() {
 }
 
 async function saveSetting(key, value) {
+  if (!canAccessSettings()) { showToast('Accès réservé à l’administrateur.', 'error'); return; }
   try {
     if (_settingsCache[key]) {
       await grist.docApi.applyUserActions([['UpdateRecord', SETTINGS_TABLE, _settingsCache[key].id, { Value: value }]]);
@@ -1768,6 +1769,10 @@ function statusLabel(s) {
 // =============================================================================
 
 function switchTab(tabId) {
+  if (tabId === 'settings' && !canAccessSettings()) {
+    tabId = 'calendar';
+  }
+
   document.querySelectorAll('.tab-btn').forEach(function(btn) {
     btn.classList.toggle('active', btn.getAttribute('data-tab') === tabId);
   });
@@ -3361,6 +3366,19 @@ function getFilteredTasks() {
     if (showArchivedTasks) return t.Status === 'archived';
     return t.Status !== 'archived';
   });
+
+  // Le Référent métier ne voit que les tâches de ses projets autorisés.
+  if (isBusinessReferent()) {
+    var visibleProjectIds = {};
+    projects.filter(function(p) {
+      return canViewProject(p);
+    }).forEach(function(p) {
+      visibleProjectIds[Number(p.id)] = true;
+    });
+    result = result.filter(function(t) {
+      return visibleProjectIds[Number(t.Project_Id)] === true;
+    });
+  }
   if (currentFilterRole) {
     // task.Assignee peut contenir le Nom OU l'Email : on accepte les deux
     var roleIdSet = {};
@@ -3597,6 +3615,11 @@ async function onCalendarDrop(event, dateStr) {
   
   var task = tasks.find(function(t) { return t.id === calendarDraggedTaskId; });
   if (!task) return;
+  if (!canEditTask(task)) {
+    showToast('Vous ne pouvez pas modifier cette tâche.', 'error');
+    calendarDraggedTaskId = null;
+    return;
+  }
   
   // Parse the new date
   var parts = dateStr.split('-');
@@ -4276,7 +4299,11 @@ async function archiveTask(taskId) {
   try {
     var statusCol = getColumnName('tasks', 'status');
     var task = tasks.find(function(t) { return t.id === taskId; });
-    var oldStatus = task ? task.Status : '';
+    if (!canEditTask(task)) {
+      showToast('Vous ne pouvez pas archiver cette tâche.', 'error');
+      return;
+    }
+    var oldStatus = task.Status;
     await grist.docApi.applyUserActions([['UpdateRecord', TASKS_TABLE, taskId, { [statusCol]: 'archived' }]]);
     if (task) task.Status = 'archived';
     showToast(currentLang === 'fr' ? 'Tâche archivée' : 'Task archived', 'success');
@@ -4294,7 +4321,11 @@ async function restoreTask(taskId) {
   try {
     var statusCol = getColumnName('tasks', 'status');
     var task = tasks.find(function(t) { return t.id === taskId; });
-    var oldStatus = task ? task.Status : '';
+    if (!canEditTask(task)) {
+      showToast('Vous ne pouvez pas restaurer cette tâche.', 'error');
+      return;
+    }
+    var oldStatus = task.Status;
     await grist.docApi.applyUserActions([['UpdateRecord', TASKS_TABLE, taskId, { [statusCol]: 'todo' }]]);
     if (task) task.Status = 'todo';
     showToast(currentLang === 'fr' ? 'Tâche restaurée' : 'Task restored', 'success');
@@ -4380,7 +4411,12 @@ async function onDrop(e) {
     }
     try {
       var draggedTask = tasks.find(function(t) { return t.id === draggedTaskId; });
-      var oldVal = draggedTask ? draggedTask[field] : '';
+      if (!canEditTask(draggedTask)) {
+        showToast('Vous ne pouvez pas modifier cette tâche.', 'error');
+        draggedTaskId = null;
+        return;
+      }
+      var oldVal = draggedTask[field];
       var record = {};
       if (field === 'Project_Id') {
         record[field] = newValue ? parseInt(newValue) : null;
@@ -4680,7 +4716,8 @@ function getGanttSubtasks(taskId) {
 // Construit la <td> de libellé d'une sous-tâche (indentée, allégée, cliquable)
 function renderGanttSubtaskLabelCell(st, parentTaskId) {
   var completedClass = st.Completed ? ' style="text-decoration:line-through;opacity:0.5;"' : '';
-  var html = '<td class="gantt-task-label gantt-subtask-cell gantt-clickable-label" onclick="openEditTaskModal(' + parentTaskId + ')"' + completedClass + '>';
+  var html = '<td class="gantt-task-label gantt-subtask-cell' + (isBusinessReferent() ? '' : ' gantt-clickable-label') + '"' +
+    (isBusinessReferent() ? '' : ' onclick="openEditTaskModal(' + parentTaskId + ')"') + completedClass + '>';
   html += '<span style="font-size:10px;color:#94a3b8;margin-right:4px;">' + (isMilestone(st) ? '◆' : '↳') + '</span>';
   html += '<span style="font-size:11px;' + (isMilestone(st) ? 'font-weight:700;' : '') + '">' + sanitize(st.Title) + '</span>';
   // A1 : indicateur de dépendance entre sous-tâches
@@ -4788,7 +4825,8 @@ function renderGanttTaskLabel(task) {
   var ganttProjColor = getProjectColor(task.Project_Id);
   var ganttProjName = getProjectName(task.Project_Id);
 
-  var html = '<td class="gantt-task-label gantt-clickable-label" onclick="openEditTaskModal(' + task.id + ')">';
+  var html = '<td class="gantt-task-label' + (isBusinessReferent() ? '' : ' gantt-clickable-label') + '"' +
+    (isBusinessReferent() ? '' : ' onclick="openEditTaskModal(' + task.id + ')"') + '>';
   html += '<div class="task-name">' + ganttChevron(task) + '<span class="priority-dot ' + dotClass + '"></span> <strong>' + sanitize(task.Title) + '</strong>';
   if (ganttProjName) html += ' <span style="display:inline-block;background:' + ganttProjColor + ';color:white;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:700;vertical-align:middle;">' + sanitize(ganttProjName) + '</span>';
   html += ganttDepBadge(task) + '</div>';
@@ -4983,7 +5021,7 @@ function renderGanttView() {
           html += '<div style="position:absolute;top:0;bottom:0;left:' + wTodayPct + '%;width:2px;background:#ef4444;z-index:1;pointer-events:none;"></div>';
         }
         if (wGeom && wi === wGeom.idx) {
-          html += '<div class="gantt-bar ' + barClass + '" style="left:' + wGeom.left + 'px;width:' + wGeom.width + 'px;cursor:pointer;' + barCustomStyle + '" title="' + sanitize(task.Title) + '" onclick="openEditTaskModal(' + task.id + ')">' + sanitize(task.Title) + '</div>';
+          html += '<div class="gantt-bar ' + barClass + '" style="left:' + wGeom.left + 'px;width:' + wGeom.width + 'px;cursor:pointer;' + barCustomStyle + '" title="' + sanitize(task.Title) + '" onclick="if (!isBusinessReferent()) openEditTaskModal(' + task.id + ')">' + sanitize(task.Title) + '</div>';
         }
         if (wExtGeom && wi === wExtGeom.idx) {
           html += '<div class="gantt-bar-extension" title="' + t('extensionTooltip') + ' — ' + sanitize(task.Title) + '" style="left:' + wExtGeom.left + 'px;width:' + wExtGeom.width + 'px;border-color:' + extColor + ';background:' + extColor + '20;"></div>';
@@ -5005,7 +5043,7 @@ function renderGanttView() {
           for (var wi2 = 0; wi2 < weeks.length; wi2++) {
             html += '<td class="gantt-cell' + (wi2 === wTodayIdx ? ' today-col' : '') + '" style="position:relative;min-width:' + weekColW + 'px;">';
             if (stGeom && wi2 === stGeom.idx) {
-              html += '<div class="gantt-bar gantt-bar-subtask ' + stBarClass + '" style="left:' + stGeom.left + 'px;width:' + stGeom.width + 'px;cursor:pointer;" title="' + sanitize(st.Title) + '" onclick="openEditTaskModal(' + task.id + ')"></div>';
+              html += '<div class="gantt-bar gantt-bar-subtask ' + stBarClass + '" style="left:' + stGeom.left + 'px;width:' + stGeom.width + 'px;cursor:pointer;" title="' + sanitize(st.Title) + '" onclick="if (!isBusinessReferent()) openEditTaskModal(' + task.id + ')"></div>';
             }
             html += '</td>';
           }
@@ -5100,7 +5138,7 @@ function renderGanttView() {
         html += '<td class="gantt-cell" style="position:relative;min-width:' + colWidth + 'px;' + (isCurrent2 ? 'background:#fef2f2;' : '') + '">';
         if (ym === yBarStart) {
           var yBarW = (yBarEnd - yBarStart + 1) * colWidth;
-          html += '<div class="gantt-bar ' + barClass + '" style="left:2px;width:' + yBarW + 'px;cursor:pointer;' + barCustomStyle + '" title="' + sanitize(task.Title) + '" onclick="openEditTaskModal(' + task.id + ')">' + sanitize(task.Title) + '</div>';
+          html += '<div class="gantt-bar ' + barClass + '" style="left:2px;width:' + yBarW + 'px;cursor:pointer;' + barCustomStyle + '" title="' + sanitize(task.Title) + '" onclick="if (!isBusinessReferent()) openEditTaskModal(' + task.id + ')">' + sanitize(task.Title) + '</div>';
         }
         if (ym === yExtStart && yExtStart >= 0) {
           var yExtW = (yExtEndIdx - yExtStart + 1) * colWidth;
@@ -5132,7 +5170,7 @@ function renderGanttView() {
             html += '<td class="gantt-cell" style="position:relative;min-width:' + colWidth + 'px;">';
             if (ym3 === stYStart) {
               var stYW = (stYEnd - stYStart + 1) * colWidth;
-              html += '<div class="gantt-bar gantt-bar-subtask ' + stBarClass + '" style="left:2px;width:' + stYW + 'px;cursor:pointer;" title="' + sanitize(st.Title) + '" onclick="openEditTaskModal(' + task.id + ')"></div>';
+              html += '<div class="gantt-bar gantt-bar-subtask ' + stBarClass + '" style="left:2px;width:' + stYW + 'px;cursor:pointer;" title="' + sanitize(st.Title) + '" onclick="if (!isBusinessReferent()) openEditTaskModal(' + task.id + ')"></div>';
             }
             html += '</td>';
           }
@@ -5205,7 +5243,7 @@ function renderGanttView() {
           html += '<div style="position:absolute;top:0;bottom:0;left:' + todayDayPct + '%;width:2px;background:#ef4444;z-index:1;pointer-events:none;"></div>';
         }
         if (mGeom && m === mGeom.idx) {
-          html += '<div class="gantt-bar ' + barClass + '" style="left:' + mGeom.left + 'px;width:' + mGeom.width + 'px;cursor:pointer;' + barCustomStyle + '" title="' + sanitize(task.Title) + '" onclick="openEditTaskModal(' + task.id + ')">' + sanitize(task.Title) + '</div>';
+          html += '<div class="gantt-bar ' + barClass + '" style="left:' + mGeom.left + 'px;width:' + mGeom.width + 'px;cursor:pointer;' + barCustomStyle + '" title="' + sanitize(task.Title) + '" onclick="if (!isBusinessReferent()) openEditTaskModal(' + task.id + ')">' + sanitize(task.Title) + '</div>';
         }
         if (mExtGeom && m === mExtGeom.idx) {
           html += '<div class="gantt-bar-extension" title="' + t('extensionTooltip') + ' — ' + sanitize(task.Title) + '" style="left:' + mExtGeom.left + 'px;width:' + mExtGeom.width + 'px;border-color:' + mExtColor + ';background:' + mExtColor + '20;"></div>';
@@ -5230,7 +5268,7 @@ function renderGanttView() {
               html += '<div style="position:absolute;top:0;bottom:0;left:' + todayDayPct + '%;width:2px;background:#ef4444;z-index:1;pointer-events:none;"></div>';
             }
             if (stGeom && m2 === stGeom.idx) {
-              html += '<div class="gantt-bar gantt-bar-subtask ' + stBarClass + '" style="left:' + stGeom.left + 'px;width:' + stGeom.width + 'px;cursor:pointer;" title="' + sanitize(st.Title) + '" onclick="openEditTaskModal(' + task.id + ')"></div>';
+              html += '<div class="gantt-bar gantt-bar-subtask ' + stBarClass + '" style="left:' + stGeom.left + 'px;width:' + stGeom.width + 'px;cursor:pointer;" title="' + sanitize(st.Title) + '" onclick="if (!isBusinessReferent()) openEditTaskModal(' + task.id + ')"></div>';
             }
             html += '</td>';
           }
@@ -5354,7 +5392,7 @@ function renderGanttView() {
       if (di === barStartIdx) {
         var spanDays = barEndIdx - barStartIdx + 1;
         var widthPx = spanDays * 36;
-        html += '<div class="gantt-bar ' + barClass + '" style="left:2px;width:' + widthPx + 'px;cursor:pointer;' + barCustomStyle + '" title="' + sanitize(task.Title) + '" onclick="openEditTaskModal(' + task.id + ')">' + sanitize(task.Title) + '</div>';
+        html += '<div class="gantt-bar ' + barClass + '" style="left:2px;width:' + widthPx + 'px;cursor:pointer;' + barCustomStyle + '" title="' + sanitize(task.Title) + '" onclick="if (!isBusinessReferent()) openEditTaskModal(' + task.id + ')">' + sanitize(task.Title) + '</div>';
       }
       if (di === dExtStartIdx && dExtStartIdx >= 0) {
         var dExtW = (dExtEndIdx - dExtStartIdx + 1) * 36;
@@ -5392,7 +5430,7 @@ function renderGanttView() {
           if (di2 === stBarStartIdx) {
             var stSpanDays = stBarEndIdx - stBarStartIdx + 1;
             var stWidth = stSpanDays * 36;
-            html += '<div class="gantt-bar gantt-bar-subtask ' + stBarClass + '" style="left:2px;width:' + stWidth + 'px;cursor:pointer;" title="' + sanitize(st.Title) + '" onclick="openEditTaskModal(' + task.id + ')"></div>';
+            html += '<div class="gantt-bar gantt-bar-subtask ' + stBarClass + '" style="left:2px;width:' + stWidth + 'px;cursor:pointer;" title="' + sanitize(st.Title) + '" onclick="if (!isBusinessReferent()) openEditTaskModal(' + task.id + ')"></div>';
           }
           html += '</td>';
         }
@@ -5607,8 +5645,8 @@ function renderTemplatesView() {
     html += '</div></div>';
     html += '<div style="display:flex;gap:4px;">';
     html += '<button class="btn btn-primary btn-sm" onclick="useTemplate(' + tpl.id + ')">' + t('useTemplate') + '</button>';
-    if (isOwner) html += '<button class="btn-icon" onclick="openNewTemplateModal(' + tpl.id + ')" title="' + t('editTemplate') + '">✏️</button>';
-    if (isOwner) html += '<button class="btn-icon" onclick="deleteTemplate(' + tpl.id + ')">🗑️</button>';
+    if (canAccessSettings()) html += '<button class="btn-icon" onclick="openNewTemplateModal(' + tpl.id + ')" title="' + t('editTemplate') + '">✏️</button>';
+    if (canAccessSettings()) html += '<button class="btn-icon" onclick="deleteTemplate(' + tpl.id + ')">🗑️</button>';
     html += '</div>';
     html += '</div>';
   }
@@ -5671,8 +5709,14 @@ function renderUsersList() {
     html += '<td>' + (u.Service ? '<span class="assignee-chip">🏢 ' + sanitize(u.Service) + '</span>' : '--') + '</td>';
     html += '<td><span style="padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;background:' + roleBg + '">' + sanitize(roleText) + '</span></td>';
     html += '<td>' + (u.Group_Name ? '<span class="assignee-chip">👥 ' + sanitize(u.Group_Name) + '</span>' : '--') + '</td>';
-    html += '<td><button class="btn-icon" onclick="openEditUserModal(' + u.id + ')" title="' + t('edit') + '">✏️</button>';
-    html += '<button class="btn-icon" onclick="deleteUser(' + u.id + ')">🗑️</button></td>';
+    html += '<td>';
+    if (canManageUsers()) {
+      html += '<button class="btn-icon" onclick="openEditUserModal(' + u.id + ')" title="' + t('edit') + '">✏️</button>';
+      html += '<button class="btn-icon" onclick="deleteUser(' + u.id + ')">🗑️</button>';
+    } else {
+      html += '--';
+    }
+    html += '</td>';
     html += '</tr>';
   }
 
@@ -5739,6 +5783,7 @@ function renderCategoriesList() {
 }
 
 function openCategoriesModal() {
+  if (!canAccessSettings()) { showToast('Accès réservé à l’administrateur.', 'error'); return; }
   var html = '<div class="modal-overlay" onclick="closeModal(event)">';
   html += '<div class="modal modal-cf" onclick="event.stopPropagation()">';
   html += '<div class="modal-header"><h3>🏷️ ' + t('manageCategories') + '</h3><button class="modal-close" onclick="closeModalForce()">✕</button></div>';
@@ -5778,6 +5823,7 @@ function openCategoriesModal() {
 }
 
 function editCategory(catId, name, color) {
+  if (!canAccessSettings()) { showToast('Accès réservé à l’administrateur.', 'error'); return; }
   document.getElementById('edit-cat-id').value = catId;
   document.getElementById('new-cat-name').value = name;
   document.getElementById('new-cat-color').value = color;
@@ -5785,6 +5831,7 @@ function editCategory(catId, name, color) {
 }
 
 async function saveCategory() {
+  if (!canAccessSettings()) { showToast('Accès réservé à l’administrateur.', 'error'); return; }
   var name = document.getElementById('new-cat-name').value.trim();
   var color = document.getElementById('new-cat-color').value;
   var editId = document.getElementById('edit-cat-id').value;
@@ -5818,7 +5865,7 @@ async function saveCategory() {
 }
 
 async function deleteCategory(categoryId) {
-  if (!isOwner) return;
+  if (!canAccessSettings()) { showToast('Accès réservé à l’administrateur.', 'error'); return; }
   var confirmed = await showConfirmModal(currentLang === 'fr' ? 'Supprimer cette catégorie ?' : 'Delete this category?', currentLang === 'fr' ? 'Supprimer' : 'Delete');
   if (!confirmed) return;
 
@@ -5871,6 +5918,10 @@ var _manageRolesState = { roles: [] };
 // ============================================================
 
 async function openManageRolesModal() {
+  if (!canAccessSettings()) {
+    showToast('Accès réservé à l’administrateur.', 'error');
+    return;
+  }
   try {
     var roleData = await grist.docApi.fetchTable(ROLES_TABLE);
     var roles = [];
@@ -6052,6 +6103,10 @@ function renderManageRolesModal() {
 }
 
 function addRoleChoice() {
+  if (!canAccessSettings()) {
+    showToast('Accès réservé à l’administrateur.', 'error');
+    return;
+  }
   var input = document.getElementById('new-role-name');
   var name = (input.value || '').trim();
 
@@ -6089,6 +6144,10 @@ function addRoleChoice() {
 }
 
 async function editRole(roleId) {
+  if (!canAccessSettings()) {
+    showToast('Accès réservé à l’administrateur.', 'error');
+    return;
+  }
   var roles = _manageRolesState.roles || [];
   var role = roles.find(function(r) {
     return String(r.id) === String(roleId);
@@ -6190,6 +6249,10 @@ async function editRole(roleId) {
 }
 
 async function saveEditedRole(roleId) {
+  if (!canAccessSettings()) {
+    showToast('Accès réservé à l’administrateur.', 'error');
+    return;
+  }
   var roles = _manageRolesState.roles || [];
   var role = roles.find(function(r) {
     return String(r.id) === String(roleId);
@@ -6237,6 +6300,10 @@ async function saveEditedRole(roleId) {
 }
 
 function removeRoleChoice(index) {
+  if (!canAccessSettings()) {
+    showToast('Accès réservé à l’administrateur.', 'error');
+    return;
+  }
   var roles = _manageRolesState.roles || [];
   var role = roles[index];
 
@@ -6277,6 +6344,10 @@ function removeRoleChoice(index) {
 }
 
 async function saveRoleChoices() {
+  if (!canAccessSettings()) {
+    showToast('Accès réservé à l’administrateur.', 'error');
+    return;
+  }
   try {
     var roles = _manageRolesState.roles || [];
     var roleData = await grist.docApi.fetchTable(ROLES_TABLE);
@@ -6391,6 +6462,10 @@ async function saveRoleChoices() {
 
 
 async function openEditUserModal(userId) {
+  if (!canManageUsers()) {
+    showToast('Accès réservé aux administrateurs et développeurs.', 'error');
+    return;
+  }
   var user = users.find(function(u) { return u.id === userId; });
   if (!user) return;
 
@@ -6433,6 +6508,10 @@ async function openEditUserModal(userId) {
 }
 
 function openEditGroupModal(groupId) {
+  if (!canAccessSettings()) {
+    showToast('Accès réservé à l’administrateur.', 'error');
+    return;
+  }
   var group = groups.find(function(g) { return g.id === groupId; });
   if (!group) return;
 
@@ -6452,6 +6531,10 @@ function openEditGroupModal(groupId) {
 }
 
 async function updateUser(userId) {
+  if (!canManageUsers()) {
+    showToast('Accès réservé aux administrateurs et développeurs.', 'error');
+    return;
+  }
   var name = document.getElementById('user-name').value.trim();
   if (!name) return;
 
@@ -6476,6 +6559,10 @@ async function updateUser(userId) {
 }
 
 async function updateGroup(groupId) {
+  if (!canAccessSettings()) {
+    showToast('Accès réservé à l’administrateur.', 'error');
+    return;
+  }
   var name = document.getElementById('group-name').value.trim();
   if (!name) return;
 
@@ -6496,6 +6583,10 @@ async function updateGroup(groupId) {
 }
 
 async function openNewUserModal() {
+  if (!canManageUsers()) {
+    showToast('Accès réservé aux administrateurs et développeurs.', 'error');
+    return;
+  }
   var groupOptions = '<option value="">--</option>';
   for (var i = 0; i < groups.length; i++) {
     groupOptions += '<option value="' + sanitize(groups[i].Name) + '">' + sanitize(groups[i].Name) + '</option>';
@@ -6530,6 +6621,10 @@ async function openNewUserModal() {
 }
 
 function openNewGroupModal() {
+  if (!canAccessSettings()) {
+    showToast('Accès réservé à l’administrateur.', 'error');
+    return;
+  }
   var html = '<div class="modal-overlay" onclick="closeModal(event)">';
   html += '<div class="modal" onclick="event.stopPropagation()">';
   html += '<div class="modal-header"><h3>' + t('modalNewGroup') + '</h3><button class="modal-close" onclick="closeModalForce()">✕</button></div>';
@@ -6546,6 +6641,10 @@ function openNewGroupModal() {
 }
 
 async function createUser() {
+  if (!canManageUsers()) {
+    showToast('Accès réservé aux administrateurs et développeurs.', 'error');
+    return;
+  }
   var name = document.getElementById('user-name').value.trim();
   if (!name) return;
 
@@ -6570,6 +6669,10 @@ async function createUser() {
 }
 
 async function createGroup() {
+  if (!canAccessSettings()) {
+    showToast('Accès réservé à l’administrateur.', 'error');
+    return;
+  }
   var name = document.getElementById('group-name').value.trim();
   if (!name) return;
 
@@ -6592,7 +6695,10 @@ async function createGroup() {
 }
 
 async function deleteUser(userId) {
-  if (!isOwner) return;
+  if (!canManageUsers()) {
+    showToast('Accès réservé aux administrateurs et développeurs.', 'error');
+    return;
+  }
   var confirmed = await showConfirmModal(t('confirmDeleteUser'), currentLang === 'fr' ? 'Supprimer l\'utilisateur' : 'Delete user');
   if (!confirmed) return;
   try {
@@ -6607,7 +6713,10 @@ async function deleteUser(userId) {
 }
 
 async function deleteGroup(groupId) {
-  if (!isOwner) return;
+  if (!canAccessSettings()) {
+    showToast('Accès réservé à l’administrateur.', 'error');
+    return;
+  }
   var confirmed = await showConfirmModal(t('confirmDeleteGroup'), currentLang === 'fr' ? 'Supprimer le groupe' : 'Delete group');
   if (!confirmed) return;
   try {
@@ -6793,6 +6902,7 @@ var draftTaskId = null; // id de la tâche brouillon en cours de création (appr
 // Crée une tâche brouillon immédiatement puis ouvre l'éditeur COMPLET.
 // À la fermeture : si un titre a été saisi -> enregistrée ; sinon -> brouillon supprimé.
 async function startNewTask(defaultStatus, dateStr, prefill) {
+  if (!canCreateTasks()) { showToast('Vous ne pouvez pas créer de tâches.', 'error'); return; }
   prefill = prefill || {};
   var statuses = getKanbanStatuses();
   var record = {};
@@ -6890,6 +7000,8 @@ function updateTaskProjectFields() {
 function openEditTaskModal(taskId, preserveAssignees) {
   var task = tasks.find(function(t) { return t.id === taskId; });
   if (!task) return;
+  if (draftTaskId === taskId) { if (!canCreateTasks()) return; }
+  else if (!canEditTask(task)) { showToast('Vous ne pouvez pas modifier cette tâche.', 'error'); return; }
 
   if (!preserveAssignees) {
     editAssignees = task.Assignee ? task.Assignee.split(',').map(function(a) { return a.trim(); }).filter(Boolean) : [];
@@ -7636,6 +7748,11 @@ function openSubtaskDepModal(subtaskId, taskId) {
 }
 
 async function updateSubtaskDep(subtaskId, taskId) {
+  var parentTask = tasks.find(function(t) { return t.id === taskId; });
+  if (!canEditTask(parentTask)) {
+    showToast('Vous ne pouvez pas modifier cette tâche.', 'error');
+    return;
+  }
   var select = document.getElementById('subtask-blocker-select');
   var blockerId = select.value ? parseInt(select.value) : null;
   
@@ -7655,7 +7772,11 @@ async function updateSubtaskDep(subtaskId, taskId) {
 
 async function quickAction(taskId, newStatus) {
   var task = tasks.find(function(t) { return t.id === taskId; });
-  var wasNotDone = task && task.Status !== 'done';
+  if (!canEditTask(task)) {
+    showToast('Vous ne pouvez pas modifier cette tâche.', 'error');
+    return;
+  }
+  var wasNotDone = task.Status !== 'done';
 
   // A2 : le blocage par dependance s'applique aussi aux actions rapides
   // (c'etait le seul chemin qui permettait de contourner "bloquee par").
@@ -7706,6 +7827,11 @@ async function quickAction(taskId, newStatus) {
  */
 async function persistTaskFormFields(taskId) {
   if (taskId == null) return;
+  var taskToPersist = tasks.find(function(t) { return t.id === taskId; });
+  if (draftTaskId === taskId ? !canCreateTasks() : !canEditTask(taskToPersist)) {
+    showToast('Vous ne pouvez pas modifier cette tâche.', 'error');
+    return;
+  }
   var titleEl = document.getElementById('task-title');
   if (!titleEl) return;                       // l'éditeur n'est pas ouvert : rien à figer
   var record = {};
@@ -7734,6 +7860,11 @@ async function persistTaskFormFields(taskId) {
 }
 
 async function addSubtask(parentTaskId) {
+  var parentTask = tasks.find(function(t) { return t.id === parentTaskId; });
+  if (!canCreateTasks() || !canEditTask(parentTask)) {
+    showToast('Vous ne pouvez pas créer de sous-tâches ici.', 'error');
+    return;
+  }
   var input = document.getElementById('new-subtask-input');
   var title = input.value.trim();
   if (!title) return;
@@ -7785,6 +7916,14 @@ function restoreModalScrollTop(pos) {
 }
 
 async function toggleSubtask(subtaskId, completed) {
+  var targetSubtask = subtasks.find(function(st) { return st.id === subtaskId; });
+  var parentTask = targetSubtask && tasks.find(function(t) {
+    return t.id === targetSubtask.Parent_Task_Id;
+  });
+  if (!canEditTask(parentTask)) {
+    showToast('Vous ne pouvez pas modifier cette sous-tâche.', 'error');
+    return;
+  }
   var savedAssignees = editAssignees.slice();
   var savedAccountable = editAccountable.slice();
   var savedConsulted = editConsulted.slice();
@@ -7820,6 +7959,11 @@ async function toggleSubtask(subtaskId, completed) {
 }
 
 async function deleteSubtask(subtaskId, parentTaskId) {
+  var parentTask = tasks.find(function(t) { return t.id === parentTaskId; });
+  if (!canDeleteTasks() || !canEditTask(parentTask)) {
+    showToast('Vous ne pouvez pas supprimer cette sous-tâche.', 'error');
+    return;
+  }
   var savedAssignees = editAssignees.slice();
   var savedAccountable = editAccountable.slice();
   var savedConsulted = editConsulted.slice();
@@ -7905,6 +8049,11 @@ function filterStAssignees(subtaskId, query) {
 }
 
 async function saveEditSubtask(subtaskId, parentTaskId) {
+  var parentTask = tasks.find(function(t) { return t.id === parentTaskId; });
+  if (!canEditTask(parentTask)) {
+    showToast('Vous ne pouvez pas modifier cette sous-tâche.', 'error');
+    return;
+  }
   var titleInput    = document.getElementById('st-title-'    + subtaskId);
   var descInput     = document.getElementById('st-desc-'     + subtaskId);
   var statusSel     = document.getElementById('st-status-'   + subtaskId);
@@ -7960,6 +8109,11 @@ async function saveEditSubtask(subtaskId, parentTaskId) {
 }
 
 async function generateSubtaskOccurrences(subtaskId, parentTaskId) {
+  var parentTask = tasks.find(function(t) { return t.id === parentTaskId; });
+  if (!canCreateTasks() || !canEditTask(parentTask)) {
+    showToast('Vous ne pouvez pas créer de sous-tâches ici.', 'error');
+    return;
+  }
   var st = subtasks.find(function(s) { return s.id === subtaskId; });
   if (!st || !st.Recurrence || st.Recurrence === 'none') return;
   var baseDate = st.Due_Date ? new Date(st.Due_Date * 1000) : new Date();
@@ -8013,6 +8167,8 @@ async function generateSubtaskOccurrences(subtaskId, parentTaskId) {
 // =============================================================================
 
 async function addDependency(taskId) {
+  var dependencyTask = tasks.find(function(t) { return t.id === taskId; });
+  if (!canEditTask(dependencyTask)) { showToast('Vous ne pouvez pas modifier les dépendances de cette tâche.', 'error'); return; }
   var select = document.getElementById('dep-select');
   var dependsOnId = parseInt(select.value);
   if (!dependsOnId) return;
@@ -8046,6 +8202,8 @@ async function addDependency(taskId) {
 }
 
 async function removeDependency(taskId, dependsOnTaskId) {
+  var dependencyTask = tasks.find(function(t) { return t.id === taskId; });
+  if (!canEditTask(dependencyTask)) { showToast('Vous ne pouvez pas modifier les dépendances de cette tâche.', 'error'); return; }
   var dep = dependencies.find(function(d) {
     return d.Task_Id === taskId && d.Depends_On_Task_Id === dependsOnTaskId;
   });
@@ -8281,6 +8439,7 @@ async function updateCustomFieldValue(taskId, fieldId, value) {
 }
 
 function openCustomFieldsModal() {
+  if (!canAccessSettings()) { showToast('Accès réservé à l’administrateur.', 'error'); return; }
   var html = '<div class="modal-overlay" onclick="closeModal(event)">';
   html += '<div class="modal modal-cf" onclick="event.stopPropagation()">';
   html += '<div class="modal-header"><h3>🏷️ ' + t('manageCustomFields') + '</h3><button class="modal-close" onclick="closeModalForce()">✕</button></div>';
@@ -8332,6 +8491,7 @@ function toggleCfOptions() {
 }
 
 async function addCustomField() {
+  if (!canAccessSettings()) { showToast('Accès réservé à l’administrateur.', 'error'); return; }
   var name = document.getElementById('new-cf-name').value.trim();
   var type = document.getElementById('new-cf-type').value;
   var options = document.getElementById('new-cf-options').value.trim();
@@ -8360,7 +8520,7 @@ async function addCustomField() {
 }
 
 async function deleteCustomField(fieldId) {
-  if (!isOwner) return;
+  if (!canAccessSettings()) { showToast('Accès réservé à l’administrateur.', 'error'); return; }
   
   try {
     // Delete field values first
@@ -8597,6 +8757,7 @@ function closeModalForce() {
 // =============================================================================
 
 async function createTask() {
+  if (!canCreateTasks()) { showToast('Vous ne pouvez pas créer de tâches.', 'error'); return; }
   var title = document.getElementById('task-title').value.trim();
   if (!title) return;
 
@@ -8653,6 +8814,9 @@ async function createTask() {
 }
 
 async function updateTask(taskId) {
+  var permissionTask = tasks.find(function(t) { return t.id === taskId; });
+  if (draftTaskId !== taskId && !canEditTask(permissionTask)) { showToast('Vous ne pouvez pas modifier cette tâche.', 'error'); return; }
+  if (draftTaskId === taskId && !canCreateTasks()) { showToast('Vous ne pouvez pas créer de tâches.', 'error'); return; }
   var title = document.getElementById('task-title').value.trim();
   if (!title) return;
   if (draftTaskId === taskId) draftTaskId = null; // ce brouillon devient une vraie tâche
@@ -8756,7 +8920,7 @@ async function updateTask(taskId) {
 }
 
 async function deleteTask(taskId) {
-  if (!isOwner) return;
+  if (!canDeleteTasks()) { showToast('Vous ne pouvez pas supprimer de tâches.', 'error'); return; }
   var confirmed = await showConfirmModal(t('confirmDelete'), currentLang === 'fr' ? 'Supprimer la tâche' : 'Delete task');
   if (!confirmed) return;
   try {
@@ -8775,6 +8939,7 @@ async function deleteTask(taskId) {
 }
 
 async function createTemplate() {
+  if (!canAccessSettings()) { showToast('Accès réservé à l’administrateur.', 'error'); return; }
   var title = document.getElementById('tpl-title').value.trim();
   if (!title) return;
 
@@ -8804,6 +8969,7 @@ async function createTemplate() {
 }
 
 async function updateTemplate(tplId) {
+  if (!canAccessSettings()) { showToast('Accès réservé à l’administrateur.', 'error'); return; }
   var title = document.getElementById('tpl-title').value.trim();
   if (!title) return;
 
@@ -8833,7 +8999,7 @@ async function updateTemplate(tplId) {
 }
 
 async function deleteTemplate(tplId) {
-  if (!isOwner) return;
+  if (!canAccessSettings()) { showToast('Accès réservé à l’administrateur.', 'error'); return; }
   var confirmed = await showConfirmModal(t('confirmDeleteTemplate'), currentLang === 'fr' ? 'Supprimer le modèle' : 'Delete template');
   if (!confirmed) return;
   try {
@@ -8937,7 +9103,94 @@ async function loadWidgetPermissions() {
   }
 }
 
+function getCurrentUser() {
+  var email = String(currentUserEmail || '').trim().toLowerCase();
+  if (!email) return null;
+
+  return users.find(function(u) {
+    return String(u.Email || '').trim().toLowerCase() === email;
+  }) || null;
+}
+
+function getCurrentUserRole() {
+  var user = getCurrentUser();
+  return user ? String(user.Role || '').trim().toLowerCase() : '';
+}
+
+function isBusinessReferent() {
+  return getCurrentUserRole() === 'référent métier';
+}
+
+function canCreateTasks() {
+  var role = getCurrentUserRole();
+  return role === 'administrateur' || role === 'développeur' || role === 'superviseur';
+}
+
+function canDeleteTasks() {
+  var role = getCurrentUserRole();
+  return role === 'administrateur' || role === 'développeur';
+}
+
+function canEditTask(task) {
+  if (!task) return false;
+  var role = getCurrentUserRole();
+  if (role === 'administrateur' || role === 'développeur' || role === 'superviseur') return true;
+  if (role !== 'référent métier') return false;
+  return projectPersonMatchesCurrentUser(task.Assignee);
+}
+
+function projectPersonMatchesCurrentUser(value) {
+  if (!value) return false;
+
+  var current = getCurrentUser();
+  if (!current) return false;
+
+  var email = String(current.Email || '').trim().toLowerCase();
+  var name = String(current.Name || '').trim().toLowerCase();
+
+  return String(value).split(',').some(function(person) {
+    var target = person.trim().toLowerCase();
+    return target !== '' && (target === email || target === name);
+  });
+}
+
+function isBusinessReferentOnProject(project) {
+  if (!isBusinessReferent() || !project) return false;
+
+  return projectPersonMatchesCurrentUser(project.Referent_Metier) ||
+         projectPersonMatchesCurrentUser(project.Second_Referent_Metier);
+}
+
+function canViewProject(project) {
+  if (!project) return false;
+
+  if (!isBusinessReferent()) return true;
+
+  return isBusinessReferentOnProject(project);
+}
+
+function canManageUsers() {
+  var role = getCurrentUserRole();
+  return role === 'administrateur' || role === 'développeur';
+}
+
+function canAccessSettings() {
+  var email = String(currentUserEmail || '').trim().toLowerCase();
+  if (!email) return false;
+
+  var user = users.find(function(u) {
+    return String(u.Email || '').trim().toLowerCase() === email;
+  });
+
+  if (!user) return false;
+
+  var role = String(user.Role || '').trim().toLowerCase();
+  return role === 'administrateur';
+}
+
 function isTabAllowed(tabId) {
+  if (tabId === 'settings' && !canAccessSettings()) return false;
+  if (tabId === 'team') return canManageUsers();
   if (userAllowedTabs.length > 0) return userAllowedTabs.indexOf(tabId) !== -1;
   if (isOwner) return true;
   var ownerTabs = ['team', 'stats', 'settings'];
@@ -8950,6 +9203,19 @@ function applyOwnerRestrictions() {
     var el = document.querySelector('[data-tab="' + tab + '"]');
     if (el) el.style.display = isTabAllowed(tab) ? '' : 'none';
   });
+
+  var canManageUsersHere = canManageUsers();
+  var canManageSettingsHere = canAccessSettings();
+
+  var addUserButton = document.getElementById('team-add-user');
+  if (addUserButton) addUserButton.style.display = canManageUsersHere ? '' : 'none';
+
+  var rolesButton = document.getElementById('team-manage-roles');
+  if (rolesButton) rolesButton.style.display = canManageSettingsHere ? '' : 'none';
+
+  var groupsSection = document.getElementById('team-groups-section');
+  if (groupsSection) groupsSection.style.display = canManageSettingsHere ? '' : 'none';
+
   var activeBtn = document.querySelector('.tab-btn.active');
   if (activeBtn && !isTabAllowed(activeBtn.getAttribute('data-tab'))) {
     switchTab('calendar');
@@ -9642,7 +9908,11 @@ function renderProjectList() {
   }
 
   // Tri du plus récent au plus ancien (id décroissant)
-  var sorted = projects.slice().sort(function(a, b) { return (b.id || 0) - (a.id || 0); });
+  var sorted = projects.filter(function(p) {
+    return canViewProject(p);
+  }).sort(function(a, b) {
+    return (b.id || 0) - (a.id || 0);
+  });
 
   var matching = q
     ? sorted.filter(function(p) { return (p.Name || '').toLowerCase().indexOf(q) !== -1; })
@@ -9697,6 +9967,7 @@ function closeProjectViewModal() {
 function openProjectViewModal(projectId) {
   var proj = projects.find(function(p) { return p.id === projectId; });
   if (!proj) return;
+  if (!canViewProject(proj)) return;
 
   var modal = document.getElementById("project-view-modal");
   var title = document.getElementById("project-view-title");
@@ -9781,8 +10052,10 @@ function openProjectViewModal(projectId) {
 
   html += '</div>';
 
-  html += '<button class="btn" style="background:#f59e0b;color:white;border:none;" onclick="closeProjectViewModal();editProject(' +
-    proj.id + ')">✏️ Modifier</button>';
+  if (!isBusinessReferent()) {
+    html += '<button class="btn" style="background:#f59e0b;color:white;border:none;" onclick="closeProjectViewModal();editProject(' +
+      proj.id + ')">✏️ Modifier</button>';
+  }
 
   html += '<button class="btn" onclick="closeProjectViewModal()" style="margin-left:8px;background:#dc2626;color:white;border:none;">Fermer</button>';
 
@@ -9888,6 +10161,11 @@ function formatDateForProjectInput(value) {
 }
 
 function editProject(projectId) {
+  var role = getCurrentUserRole();
+  if (role !== 'administrateur' && role !== 'développeur') {
+    showToast('Vous ne pouvez pas modifier les projets.', 'error');
+    return;
+  }
   var proj = projects.find(function(p) { return p.id === projectId; });
   if (!proj) return;
   
@@ -10024,6 +10302,12 @@ function selectProjectSecondReferent(name) {
 }
 
 async function saveProject() {
+  var projectRole = getCurrentUserRole();
+  if (projectRole !== 'administrateur' && projectRole !== 'développeur') {
+    showToast('Vous ne pouvez pas créer ou modifier des projets.', 'error');
+    return;
+  }
+
   console.log('[SAVE PROJECT] ===== CLIC ENREGISTRER =====');
   console.log('[SAVE PROJECT] Lecture du formulaire...');
   var projectId = document.getElementById('edit-project-id').value;
@@ -10211,6 +10495,12 @@ async function saveProject() {
 }
 
 async function deleteProject(projectId) {
+  var projectRole = getCurrentUserRole();
+  if (projectRole !== 'administrateur' && projectRole !== 'développeur') {
+    showToast('Vous ne pouvez pas supprimer de projets.', 'error');
+    return;
+  }
+
   var confirmed = await showConfirmModal(t('confirmDelete'), currentLang === 'fr' ? 'Supprimer le projet' : 'Delete project');
   if (!confirmed) return;
   
@@ -10655,6 +10945,7 @@ function renderNotifyConcernedToggle() {
   container.innerHTML = html;
 }
 async function toggleNotifyConcerned(enabled) {
+  if (!canAccessSettings()) { renderNotifyConcernedToggle(); showToast('Accès réservé à l’administrateur.', 'error'); return; }
   notifyConcernedEnabled = enabled;
   await saveSetting('notify_concerned', enabled ? 'true' : 'false');
   renderNotifyConcernedToggle();
@@ -10987,6 +11278,11 @@ function renderSettingsProjectsList(searchOverride) {
 }
 
 function openProjectModalForEdit(projectId) {
+  var role = getCurrentUserRole();
+  if (role !== 'administrateur' && role !== 'développeur') {
+    showToast('Vous ne pouvez pas modifier les projets.', 'error');
+    return;
+  }
   var proj = projects.find(function(p) { return p.id === projectId; });
   if (!proj) return;
 
@@ -11037,6 +11333,11 @@ function openProjectModalForEdit(projectId) {
 }
 
 async function saveInlineProjectEdit(projectId) {
+  var role = getCurrentUserRole();
+  if (role !== 'administrateur' && role !== 'développeur') {
+    showToast('Vous ne pouvez pas modifier les projets.', 'error');
+    return;
+  }
   var name = (document.getElementById('inline-proj-name').value || '').trim();
   if (!name) { showToast(currentLang === 'fr' ? 'Le nom est requis' : 'Name is required', 'error'); return; }
   var record = {};
@@ -11110,6 +11411,10 @@ function closeTagsModal() {
 // =============================================================================
 
 async function openColumnMappingModal() {
+  if (!canAccessSettings()) {
+    showToast('Accès réservé à l’administrateur.', 'error');
+    return;
+  }
   var html = '<div class="modal-overlay" onclick="closeModal(event)">';
   html += '<div class="modal" style="max-width:800px;" onclick="event.stopPropagation()">';
   html += '<div class="modal-header">';
@@ -11314,6 +11619,10 @@ async function detectProjectColumns() {
 }
 
 async function saveColumnMapping() {
+  if (!canAccessSettings()) {
+    showToast('Accès réservé à l’administrateur.', 'error');
+    return;
+  }
   try {
     // Collect all mappings
     var updates = [];
@@ -12011,10 +12320,10 @@ if (!isInsideGrist()) {
     loadDarkModePreference();
     if (isOwner) await registerWidget();
     await loadWidgetPermissions();
-    applyOwnerRestrictions();
     await ensureTables();
     await loadSettings();
     await loadAllData();
+    applyOwnerRestrictions();
     updateNotificationBadge();
     await checkTimeBasedAutomations();
     await cleanupOldNotifications();
