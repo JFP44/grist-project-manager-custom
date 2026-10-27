@@ -10543,6 +10543,7 @@ async function saveProject() {
         ['UpdateRecord', PROJECTS_TABLE, parseInt(projectId), record]
       ]);
       showToast(t('editProject') + ' ✓', 'success');
+      closeProjectModal();
     } else {
       // Créateur du projet (auteur) — uniquement sur la table par défaut qui possède ces colonnes
       if (PROJECTS_TABLE === DEFAULT_PROJECTS_TABLE) {
