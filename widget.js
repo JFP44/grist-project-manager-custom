@@ -10088,8 +10088,8 @@ function openProjectViewModal(projectId) {
   html += '<div style="grid-column:1 / -1;"><strong>Service demandeur :</strong> ' + displayValue(proj.SERVICE_DEMANDEUR) + '</div>';
 
   // Référents métier : même ligne
-  html += '<div><strong>1er référent métier :</strong> ' + displayValue(proj.Referent_Metier) + '</div>';
-  html += '<div><strong>2ème référent métier :</strong> ' + displayValue(proj.Second_Referent_Metier) + '</div>';
+  html += '<div><strong>1er référent métier :</strong> ' + displayValue(getProjectReferentName(proj.Referent_Metier)) + '</div>';
+  html += '<div><strong>2ème référent métier :</strong> ' + displayValue(getProjectReferentName(proj.Second_Referent_Metier)) + '</div>';
 
   // Développeurs : même ligne
   html += '<div><strong>Dev 1 :</strong> ' + displayValue(proj.Lead) + '</div>';
@@ -10176,10 +10176,10 @@ function editProject(projectId) {
   document.getElementById('project-status').value = proj.Status || 'A valider';
   populateProjectServiceDemandeur(proj.SERVICE_DEMANDEUR || '');
   var referentMetierEl = document.getElementById('project-referent-metier');
-  if (referentMetierEl) referentMetierEl.value = proj.Referent_Metier || '';
+  if (referentMetierEl) referentMetierEl.value = getProjectReferentName(proj.Referent_Metier);
 
   var secondReferentMetierEl = document.getElementById('project-second-referent-metier');
-  if (secondReferentMetierEl) secondReferentMetierEl.value = proj.Second_Referent_Metier || '';
+  if (secondReferentMetierEl) secondReferentMetierEl.value = getProjectReferentName(proj.Second_Referent_Metier);
 
   populateProjectLead(proj.Lead || '');
 
@@ -10211,6 +10211,82 @@ function editProject(projectId) {
 
   document.getElementById('project-form-title').textContent = t('editProject');
   document.getElementById('project-modal').style.display = 'flex';
+}
+
+function getProjectReferentName(value) {
+  var target = String(value || '').trim().toLowerCase();
+  if (!target) return '';
+
+  var user = users.find(function(u) {
+    return String(u.Email || '').trim().toLowerCase() === target ||
+           String(u.Name || '').trim().toLowerCase() === target;
+  });
+
+  return user ? String(user.Name || '') : String(value || '');
+}
+
+function getProjectReferentEmail(value) {
+  var target = String(value || '').trim().toLowerCase();
+  if (!target) return '';
+
+  var user = users.find(function(u) {
+    return String(u.Name || '').trim().toLowerCase() === target ||
+           String(u.Email || '').trim().toLowerCase() === target;
+  });
+
+  return user ? String(user.Email || '').trim() : '';
+}
+
+async function prepareProjectReferent(value, serviceDemandeur) {
+  var name = String(value || '').trim();
+  if (!name) {
+    return { name: '', email: '', user: null, needsSave: false, service: serviceDemandeur || '' };
+  }
+
+  var target = name.toLowerCase();
+  var user = users.find(function(u) {
+    return String(u.Name || '').trim().toLowerCase() === target ||
+           String(u.Email || '').trim().toLowerCase() === target;
+  });
+
+  var email = user ? String(user.Email || '').trim() : '';
+  var needsSave = false;
+
+  if (!email) {
+    email = window.prompt(
+      'Adresse e-mail du référent métier « ' + name + ' » :',
+      ''
+    );
+
+    if (email === null) {
+      throw new Error('Saisie de l’adresse e-mail annulée.');
+    }
+
+    email = String(email).trim();
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      throw new Error('Une adresse e-mail valide est obligatoire pour « ' + name + ' ».');
+    }
+
+    var emailOwner = users.find(function(u) {
+      return String(u.Email || '').trim().toLowerCase() === email.toLowerCase() &&
+             (!user || u.id !== user.id);
+    });
+
+    if (emailOwner) {
+      throw new Error('Cette adresse e-mail est déjà associée à « ' + emailOwner.Name + ' ».');
+    }
+
+    needsSave = true;
+  }
+
+  return {
+    name: name,
+    email: email,
+    user: user,
+    needsSave: needsSave,
+    service: serviceDemandeur || ''
+  };
 }
 
 function filterProjectReferents(value) {
@@ -10353,27 +10429,76 @@ async function saveProject() {
     referentMetier: referentMetier
   });
 
-  // Si le référent métier n'existe pas dans PM_Users, le créer automatiquement
-  console.log('[SAVE PROJECT] Test référent métier:', referentMetier);
-  if (referentMetier) {
-    var existingReferent = users.find(function(u) {
-      return String(u.Name || '').trim().toLowerCase() === referentMetier.toLowerCase();
+  if (!name) {
+    showToast(t('projectName') + ' ' + t('required'), 'error');
+    return;
+  }
+
+  // Préparer et valider les deux référents avant toute écriture dans PM_Users.
+  try {
+    var firstReferentInput = String(referentMetier || '').trim();
+    var secondReferentInput = String(secondReferentMetier || '').trim();
+
+    var firstReferent = await prepareProjectReferent(firstReferentInput, serviceDemandeur);
+    var secondReferent;
+
+    if (secondReferentInput &&
+        firstReferentInput.toLowerCase() === secondReferentInput.toLowerCase()) {
+      secondReferent = firstReferent;
+    } else {
+      secondReferent = await prepareProjectReferent(secondReferentInput, serviceDemandeur);
+    }
+
+    // Empêcher deux utilisateurs différents de partager la même adresse.
+    if (firstReferent.email && secondReferent.email &&
+        firstReferent.email.toLowerCase() === secondReferent.email.toLowerCase()) {
+      var sameReferent = firstReferent === secondReferent;
+      var sameUser = firstReferent.user && secondReferent.user &&
+                     firstReferent.user.id === secondReferent.user.id;
+
+      if (!sameReferent && !sameUser) {
+        throw new Error('Les deux référents ne peuvent pas avoir la même adresse e-mail.');
+      }
+    }
+
+    // Les saisies sont validées : enregistrer maintenant les utilisateurs nécessaires.
+    var referentActions = [];
+
+    var referentsToSave = [];
+    [firstReferent, secondReferent].forEach(function(ref) {
+      if (referentsToSave.indexOf(ref) === -1) {
+        referentsToSave.push(ref);
+      }
     });
 
-    if (!existingReferent) {
-      var newReferent = {};
-      newReferent[getColumnName('users', 'name')] = referentMetier;
-      newReferent[getColumnName('users', 'email')] = '';
-      newReferent[getColumnName('users', 'role')] = 'Référent métier';
-      newReferent[getColumnName('users', 'group')] = '';
-      newReferent[getColumnName('users', 'service')] = serviceDemandeur;
+    referentsToSave.forEach(function(ref) {
+      if (!ref.needsSave) return;
 
-      await grist.docApi.applyUserActions([
-        ['AddRecord', USERS_TABLE, null, newReferent]
-      ]);
+      var record = {};
+      record[getColumnName('users', 'name')] = ref.name;
+      record[getColumnName('users', 'email')] = ref.email;
 
-      console.log('[GristPM] Nouveau référent métier créé :', referentMetier);
+      if (!ref.user) {
+        record[getColumnName('users', 'role')] = 'Référent métier';
+        record[getColumnName('users', 'group')] = '';
+        record[getColumnName('users', 'service')] = ref.service;
+
+        referentActions.push(['AddRecord', USERS_TABLE, null, record]);
+      } else {
+        referentActions.push(['UpdateRecord', USERS_TABLE, ref.user.id, record]);
+      }
+    });
+
+    if (referentActions.length) {
+      await grist.docApi.applyUserActions(referentActions);
+      await loadAllData();
     }
+
+    referentMetier = firstReferent.email;
+    secondReferentMetier = secondReferent.email;
+  } catch (e) {
+    showToast(e.message || 'Impossible de préparer les référents métier.', 'error');
+    return;
   }
 
   // Si le service demandeur n'existe pas dans PM_Services, le créer automatiquement
@@ -10391,11 +10516,6 @@ async function saveProject() {
   var leadEl = document.getElementById('project-lead');
   var lead = leadEl ? leadEl.value : '';
   console.log('[SAVE PROJECT] Lead:', lead);
-
-  if (!name) {
-    showToast(t('projectName') + ' ' + t('required'), 'error');
-    return;
-  }
 
   try {
     var record = {};
