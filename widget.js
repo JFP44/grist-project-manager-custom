@@ -4905,7 +4905,7 @@ function renderGanttView() {
     btn.classList.toggle('active', btn.getAttribute('data-gantt-mode') === ganttMode);
   });
 
-  var tasksWithDates = getFilteredTasks().filter(function(task) { return task.Start_Date || task.Due_Date; });
+  var tasksWithDates = getFilteredTasks().filter(function(task) { return task.Status !== 'done'; }).filter(function(task) { return task.Start_Date || task.Due_Date; });
   // A8 : tri du Gantt
   var ganttSortSel = document.getElementById('gantt-sort');
   if (ganttSortSel && ganttSortSel.value !== ganttSort) ganttSortSel.value = ganttSort;
