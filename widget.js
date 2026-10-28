@@ -10473,6 +10473,29 @@ async function saveProject() {
     return;
   }
 
+  // Vérifier l'unicité du nom à la création et à la modification.
+  try {
+    var existingProjects = await grist.docApi.fetchTable(PROJECTS_TABLE);
+    var nameColumn = getColumnName('projects', 'name');
+    var normalizedName = String(name).trim().toLocaleLowerCase('fr');
+    var ids = existingProjects.id || [];
+    var names = existingProjects[nameColumn] || [];
+
+    var duplicateIndex = names.findIndex(function(existingName, index) {
+      if (projectId && Number(ids[index]) === Number(projectId)) return false;
+      return String(existingName || '').trim().toLocaleLowerCase('fr') === normalizedName;
+    });
+
+    if (duplicateIndex !== -1) {
+      showToast('Un projet portant ce nom existe déjà. Choisissez un autre nom.', 'error');
+      return;
+    }
+  } catch (e) {
+    console.error('[SAVE PROJECT] Vérification du nom impossible :', e);
+    showToast('Impossible de vérifier l’unicité du nom. Enregistrement annulé.', 'error');
+    return;
+  }
+
   // Préparer et valider les deux référents avant toute écriture dans PM_Users.
   try {
     var firstReferentInput = String(referentMetier || '').trim();
@@ -10608,6 +10631,7 @@ async function saveProject() {
       }
       showToast(t('addProject') + ' ✓', 'success');
     }
+    closeProjectModal();
     closeModalForce();
     await loadAllData();
     refreshAllViews();
