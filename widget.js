@@ -9473,17 +9473,45 @@ function renderStatsView() {
   var overdueCount = getOverdueTasks().length;
   document.getElementById('stats-overdue-count').textContent = overdueCount;
   
-  // Calculate total time from time entries
-  var totalMinutes = 0;
-  timeEntries.forEach(function(te) {
-    if (te.Duration) totalMinutes += te.Duration;
+  // Durée moyenne des tâches terminées et en cours, calculée à partir des dates
+  var nowTs = Math.floor(Date.now() / 1000);
+  var totalDurationSeconds = 0;
+  var durationTaskCount = 0;
+
+  filteredTasks.forEach(function(task) {
+    if (!task.Start_Date) return;
+
+    var endTs = null;
+
+    if (task.Status === 'done') {
+      endTs = task.Completed_At || task.Due_Date || null;
+    } else if (task.Status === 'progress') {
+      endTs = nowTs;
+    } else {
+      return;
+    }
+
+    if (!endTs || endTs < task.Start_Date) return;
+
+    totalDurationSeconds += endTs - task.Start_Date;
+    durationTaskCount++;
   });
-  var totalHours = Math.round(totalMinutes / 60);
-  document.getElementById('stats-total-time').textContent = totalHours + 'h';
-  
-  var avgMinutes = filteredTasks.length > 0 ? Math.round(totalMinutes / filteredTasks.length) : 0;
-  var avgHours = Math.round(avgMinutes / 60 * 10) / 10;
-  document.getElementById('stats-avg-time').textContent = avgHours + 'h';
+
+  var avgDurationMinutes = durationTaskCount > 0
+    ? Math.round(totalDurationSeconds / durationTaskCount / 60)
+    : 0;
+
+  var avgDays = Math.floor(avgDurationMinutes / 1440);
+  var remainingMinutes = avgDurationMinutes % 1440;
+  var avgHours = Math.floor(remainingMinutes / 60);
+  var avgMinutes = remainingMinutes % 60;
+  var avgDurationLabel = '';
+
+  if (avgDays > 0) avgDurationLabel += avgDays + ' j ';
+  if (avgHours > 0) avgDurationLabel += avgHours + ' h ';
+  if (avgMinutes > 0 || avgDurationLabel === '') avgDurationLabel += avgMinutes + ' min';
+
+  document.getElementById('stats-avg-time').textContent = avgDurationLabel.trim();
 
   // Workload chart - Risk of overload per user
   renderWorkloadChart();
