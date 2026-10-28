@@ -9462,7 +9462,12 @@ function renderStatsView() {
   document.getElementById('chart-week').innerHTML = weekHtml;
 
   // Summary stats
-  var completionRate = filteredTasks.length > 0 ? Math.round((statusCounts.done / filteredTasks.length) * 100) : 0;
+  var doneTasksCount = filteredTasks.filter(function(task) {
+    return String(task.Status || '').toLowerCase() === 'done';
+  }).length;
+  var completionRate = filteredTasks.length > 0
+    ? Math.round((doneTasksCount / filteredTasks.length) * 100)
+    : 0;
   document.getElementById('stats-completion-rate').textContent = completionRate + '%';
   
   var overdueCount = getOverdueTasks().length;
