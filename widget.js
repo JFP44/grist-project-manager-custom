@@ -11341,8 +11341,8 @@ async function renderSecuritySection() {
   var html = '<div class="security-summary ' + (allSecured ? 'security-ok' : 'security-warn') + '">';
   html += '<span class="security-icon">' + (allSecured ? '🔒' : '🔓') + '</span>';
   html += '<span>' + (allSecured
-    ? (currentLang === 'fr' ? 'Document sécurisé' : 'Document secured')
-    : (currentLang === 'fr' ? securedCount + '/' + totalCount + ' tables protégées' : securedCount + '/' + totalCount + ' tables protected')
+    ? (currentLang === 'fr' ? 'Règles détectées — sécurité non vérifiée' : 'Rules detected — security not verified')
+    : (currentLang === 'fr' ? securedCount + '/' + totalCount + ' tables avec règles détectées — sécurité non vérifiée' : securedCount + '/' + totalCount + ' tables with detected rules — security not verified')
   ) + '</span>';
   html += '</div>';
 
@@ -11359,7 +11359,7 @@ async function renderSecuritySection() {
     html += '<span class="security-table-name">' + sanitize(r.tableId) + '</span>';
     html += '<span class="security-table-perm ' + (readOnly ? 'perm-readonly' : 'perm-readwrite') + '">' + permLabel + '</span>';
     html += '<span class="security-table-status ' + (r.secured ? 'status-ok' : 'status-warn') + '">' +
-      (r.secured ? (currentLang === 'fr' ? 'Protégée' : 'Protected') : (currentLang === 'fr' ? 'Non protégée' : 'Unprotected')) + '</span>';
+      (r.secured ? (currentLang === 'fr' ? 'Règles détectées' : 'Rules detected') : (currentLang === 'fr' ? 'À vérifier' : 'Needs verification')) + '</span>';
     html += '</div>';
   }
   html += '</div>';
