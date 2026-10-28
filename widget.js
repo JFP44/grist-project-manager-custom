@@ -4170,7 +4170,7 @@ function renderTaskCard(task) {
   html += '<span class="task-card-status-badge" style="background:' + _statusColor + '20;color:' + _statusColor + ';">' + statusLabel(task.Status) + '</span>';
   var _isExpanded = !!expandedKanbanCards[task.id];
   html += '<button class="btn-icon task-card-expand-btn" onclick="event.stopPropagation();toggleCardExpand(' + task.id + ', event)" title="' + (currentLang === 'fr' ? 'Détails' : 'Details') + '">' + (_isExpanded ? '🔼' : '🔽') + '</button>';
-  if (isOwner) html += '<button class="btn-icon" onclick="deleteTask(' + task.id + ')" title="' + t('delete') + '">🗑️</button>';
+  if (canDeleteTasks()) html += '<button class="btn-icon" onclick="deleteTask(' + task.id + ')" title="' + t('delete') + '">🗑️</button>';
   html += '</div></div>';
 
   if (cd.description && task.Description) {
@@ -4552,7 +4552,7 @@ function renderTableView() {
     html += '<td>' + (task.Start_Date ? formatDate(task.Start_Date) : t('notDefined')) + '</td>';
     html += '<td style="' + (isOverdue(task) ? 'color:#dc2626;font-weight:700;' : '') + '">' + (task.Due_Date ? formatDate(task.Due_Date) + overdueHtml : t('noDate')) + '</td>';
     html += '<td onclick="event.stopPropagation();">';
-    if (isOwner) html += '<button class="btn-icon" onclick="deleteTask(' + task.id + ')">🗑️</button>';
+    if (canDeleteTasks()) html += '<button class="btn-icon" onclick="deleteTask(' + task.id + ')">🗑️</button>';
     html += '</td>';
     html += '</tr>';
 
@@ -7577,7 +7577,7 @@ function openEditTaskModal(taskId, preserveAssignees) {
 
   // Footer
   html += '<div class="modal-detail-footer">';
-  if (isOwner) html += '<button class="btn-danger" onclick="deleteTask(' + task.id + ')">' + t('delete') + '</button>';
+  if (canDeleteTasks()) html += '<button class="btn-danger" onclick="deleteTask(' + task.id + ')">' + t('delete') + '</button>';
   else html += '<div></div>';
   html += '<div style="display:flex;gap:8px;">';
   html += '<button class="btn btn-secondary" onclick="closeModalForce()">' + t('cancel') + '</button>';
@@ -9136,6 +9136,12 @@ function canEditTask(task) {
   var role = getCurrentUserRole();
   if (role === 'administrateur' || role === 'développeur' || role === 'superviseur') return true;
   if (role !== 'référent métier') return false;
+
+  var taskProject = projects.find(function(p) {
+    return Number(p.id) === Number(task.Project_Id);
+  });
+  if (!taskProject || !canViewProject(taskProject)) return false;
+
   return projectPersonMatchesCurrentUser(task.Assignee);
 }
 
