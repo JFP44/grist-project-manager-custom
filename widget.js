@@ -12363,15 +12363,17 @@ if (!isInsideGrist()) {
             { id: 'UserEmail', fields: { type: 'Text', label: 'UserEmail' } }
           ]]
         ]);
-        await grist.docApi.applyUserActions([
-          ['ModifyColumn', USER_INFO_TABLE, 'UserEmail', {
-            isFormula: false,
-            formula: 'user.Email',
-            recalcWhen: 2,
-            recalcDeps: null
-          }]
-        ]);
       }
+
+      // Toujours rétablir l'adresse de l'utilisateur connecté avant de la lire.
+      await grist.docApi.applyUserActions([
+        ['ModifyColumn', USER_INFO_TABLE, 'UserEmail', {
+          isFormula: true,
+          formula: 'user.Email',
+          recalcWhen: 2,
+          recalcDeps: null
+        }]
+      ]);
     } catch (e) {
       console.warn('Could not create helper table:', e.message);
     }
@@ -12414,7 +12416,7 @@ if (!isInsideGrist()) {
     try {
       await grist.docApi.applyUserActions([
         ['ModifyColumn', USER_INFO_TABLE, 'UserEmail', {
-          isFormula: false,
+          isFormula: true,
           formula: 'user.Email',
           recalcWhen: 2,
           recalcDeps: null
