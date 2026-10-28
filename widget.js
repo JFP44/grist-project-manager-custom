@@ -12368,7 +12368,7 @@ if (!isInsideGrist()) {
       // Toujours rétablir l'adresse de l'utilisateur connecté avant de la lire.
       await grist.docApi.applyUserActions([
         ['ModifyColumn', USER_INFO_TABLE, 'UserEmail', {
-          isFormula: true,
+          isFormula: false,
           formula: 'user.Email',
           recalcWhen: 2,
           recalcDeps: null
@@ -12416,7 +12416,7 @@ if (!isInsideGrist()) {
     try {
       await grist.docApi.applyUserActions([
         ['ModifyColumn', USER_INFO_TABLE, 'UserEmail', {
-          isFormula: true,
+          isFormula: false,
           formula: 'user.Email',
           recalcWhen: 2,
           recalcDeps: null
