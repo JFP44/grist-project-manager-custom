@@ -9396,7 +9396,7 @@ function renderStatsView() {
   // Assignee chart
   var assigneeCounts = {};
   filteredTasks.forEach(function(t) {
-    if (t.Status === 'progress' && t.Assignee) {
+    if ((t.Status === 'todo' || t.Status === 'progress') && t.Assignee) {
       t.Assignee.split(',').forEach(function(a) {
         var name = getUserDisplayName(a.trim());
         assigneeCounts[name] = (assigneeCounts[name] || 0) + 1;
