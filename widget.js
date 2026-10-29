@@ -1500,6 +1500,13 @@ function compressImageFile(file, maxW, quality) {
 // Upload d'un ou plusieurs fichiers (encodés base64) pour une tâche
 async function uploadTaskAttachments(taskId, fileList) {
   if (!fileList || !fileList.length) return;
+  if (isBusinessReferent()) {
+    var attachmentTask = tasks.find(function(t) { return Number(t.id) === Number(taskId); });
+    if (!canEditTask(attachmentTask)) {
+      showToast('Vous ne pouvez pas ajouter une pièce jointe à cette tâche.', 'error');
+      return;
+    }
+  }
   var statusEl = document.getElementById('attach-status-' + taskId);
   try {
     var addedCount = 0, skipped = [];
@@ -4054,6 +4061,10 @@ function toggleCardExpand(taskId, ev) {
 
 // Cocher/décocher une sous-tâche depuis le panneau déplié d'une tuile
 async function toggleSubtaskFromCard(subtaskId, completed) {
+  if (isBusinessReferent()) {
+    showToast('Vous ne pouvez pas modifier les sous-tâches.', 'error');
+    return;
+  }
   try {
     await grist.docApi.applyUserActions([
       ['UpdateRecord', SUBTASKS_TABLE, subtaskId, { Completed: completed }]
@@ -4274,7 +4285,7 @@ function renderTaskCard(task) {
     html += '</div>';
   }
 
-  if (task.Status === 'done') {
+  if (task.Status === 'done' && canDeleteTasks()) {
     html += '<div class="task-card-row" style="justify-content:flex-end;"><button class="btn btn-sm" style="font-size:10px;padding:2px 8px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;" onclick="event.stopPropagation();archiveTask(' + task.id + ')" title="' + (currentLang === 'fr' ? 'Archiver' : 'Archive') + '">📦 ' + (currentLang === 'fr' ? 'Archiver' : 'Archive') + '</button></div>';
   }
   if (task.Status === 'archived') {
@@ -4323,8 +4334,12 @@ async function archiveTask(taskId) {
   try {
     var statusCol = getColumnName('tasks', 'status');
     var task = tasks.find(function(t) { return t.id === taskId; });
-    if (!canEditTask(task)) {
-      showToast('Vous ne pouvez pas archiver cette tâche.', 'error');
+    if (!canDeleteTasks()) {
+      showToast('Seuls les Administrateurs et Développeurs peuvent archiver une tâche.', 'error');
+      return;
+    }
+    if (!task || task.Status !== 'done') {
+      showToast('Seules les tâches terminées peuvent être archivées.', 'error');
       return;
     }
     var oldStatus = task.Status;
@@ -4658,6 +4673,10 @@ function collapseAllSubtasks() {
 }
 
 async function toggleSubtaskFromTable(subtaskId, completed) {
+  if (isBusinessReferent()) {
+    showToast('Vous ne pouvez pas modifier les sous-tâches.', 'error');
+    return;
+  }
   // Find parent task ID before updating
   var subtask = subtasks.find(function(st) { return st.id === subtaskId; });
   var parentTaskId = subtask ? subtask.Parent_Task_Id : null;
@@ -7268,65 +7287,6 @@ function openEditTaskModal(taskId, preserveAssignees) {
   html += '</div>';
   html += '</div>';
 
-  // === DEPENDENCIES SECTION ===
-  var taskDeps = getTaskDependencies(task.id);
-  var taskBlocks = getTasksDependingOn(task.id);
-  html += '<div class="dependencies-section">';
-  html += '<div class="dependencies-header">';
-  html += '<span class="detail-field-icon">🔗</span>';
-  html += '<span class="detail-field-label">' + t('dependencies') + '</span>';
-  html += '</div>';
-  
-  // Blocked by
-  html += '<div class="dep-subsection">';
-  html += '<div class="dep-label">' + t('blockedBy') + ':</div>';
-  if (taskDeps.length === 0) {
-    html += '<div class="dep-empty">' + t('noDependencies') + '</div>';
-  } else {
-    html += '<div class="dep-list">';
-    for (var di = 0; di < taskDeps.length; di++) {
-      var dep = taskDeps[di];
-      var depDone = dep.Status === 'done';
-      html += '<div class="dep-item' + (depDone ? ' dep-done' : '') + '">';
-      html += '<span class="dep-status">' + (depDone ? '✅' : '⏳') + '</span>';
-      html += '<span class="dep-title">' + sanitize(dep.Title) + '</span>';
-      html += '<button class="dep-remove" onclick="removeDependency(' + task.id + ', ' + dep.id + ')">✕</button>';
-      html += '</div>';
-    }
-    html += '</div>';
-  }
-  html += '</div>';
-  
-  // Blocks (tasks depending on this one)
-  if (taskBlocks.length > 0) {
-    html += '<div class="dep-subsection">';
-    html += '<div class="dep-label">' + t('blocks') + ':</div>';
-    html += '<div class="dep-list">';
-    for (var bi = 0; bi < taskBlocks.length; bi++) {
-      var blk = taskBlocks[bi];
-      html += '<div class="dep-item dep-blocks">';
-      html += '<span class="dep-title">' + sanitize(blk.Title) + '</span>';
-      html += '</div>';
-    }
-    html += '</div>';
-    html += '</div>';
-  }
-  
-  // Add dependency
-  html += '<div class="dep-add-row">';
-  html += '<select id="dep-select" onchange="if (this.value) addDependency(' + task.id + ')">';
-  html += '<option value="">-- ' + t('selectTask') + ' --</option>';
-  var availableTasks = getFilteredTasks().filter(function(t) {
-    return t.id !== task.id && !taskDeps.some(function(d) { return d.id === t.id; });
-  });
-  for (var ti = 0; ti < availableTasks.length; ti++) {
-    html += '<option value="' + availableTasks[ti].id + '">' + sanitize(availableTasks[ti].Title) + '</option>';
-  }
-  html += '</select>';
-  html += '<button class="dep-add-btn" onclick="addDependency(' + task.id + ')">+</button>';
-  html += '</div>';
-  html += '</div>';
-
   // === CUSTOM FIELDS SECTION ===
   if (customFields.length > 0) {
     html += '<div class="custom-fields-section">';
@@ -7534,6 +7494,31 @@ function openEditTaskModal(taskId, preserveAssignees) {
   html += '</div></div>'; // end modal + overlay
 
   document.getElementById('modal-container').innerHTML = html;
+
+  // Référent métier : seul le statut de la tâche principale reste modifiable.
+  // Les commentaires, les fichiers et les actions rapides de statut restent disponibles.
+  if (draftTaskId !== task.id && isBusinessReferent()) {
+    var referentModal = document.getElementById('modal-container');
+
+    referentModal.querySelectorAll('input, textarea, select').forEach(function(el) {
+      if (
+        el.id === 'task-status' ||
+        el.id === 'new-comment-input' ||
+        el.type === 'file'
+      ) return;
+      el.disabled = true;
+    });
+
+    // Masquer les commandes de création et de modification des sous-tâches.
+    var referentSubtaskActions = referentModal.querySelectorAll(
+      '.subtask-edit-btn, .subtask-delete, .subtask-dep-btn, ' +
+      '.subtask-add-row, .st-form-actions, .cf-manage-btn, .assignee-add-row'
+    );
+    referentSubtaskActions.forEach(function(el) {
+      el.style.display = 'none';
+    });
+  }
+
   // D2 : remplir la liste des pièces jointes (token asynchrone à part)
   renderAttachmentsSection(task.id);
 }
@@ -7769,6 +7754,14 @@ async function quickAction(taskId, newStatus) {
     for (var i = 0; i < tasks.length; i++) {
       if (tasks[i].id === taskId) { tasks[i].Status = newStatus; break; }
     }
+
+    // Si l'action est déclenchée dans l'éditeur d'un brouillon,
+    // synchroniser le formulaire pour que l'enregistrement ne rétablisse pas l'ancien statut.
+    if (draftTaskId === taskId) {
+      var draftStatusEl = document.getElementById('task-status');
+      if (draftStatusEl) draftStatusEl.value = newStatus;
+    }
+
     showToast(t('taskMoved'), 'success');
     
     // Create next occurrence if task is recurring and just completed
@@ -7802,6 +7795,27 @@ async function persistTaskFormFields(taskId) {
   }
   var titleEl = document.getElementById('task-title');
   if (!titleEl) return;                       // l'éditeur n'est pas ouvert : rien à figer
+
+  // Pour le Référent métier, ne jamais sauvegarder les autres champs
+  // lorsqu'une action indirecte (commentaire, sous-tâche, etc.) fige le formulaire.
+  if (draftTaskId !== taskId && isBusinessReferent()) {
+    var statusEl = document.getElementById('task-status');
+    if (!statusEl) return;
+    try {
+      await grist.docApi.applyUserActions([[
+        'UpdateRecord', TASKS_TABLE, taskId,
+        (function() {
+          var statusRecord = {};
+          setField(statusRecord, 'tasks', 'status', statusEl.value);
+          return statusRecord;
+        })()
+      ]]);
+    } catch (e) {
+      console.error('persistTaskFormFields (référent métier):', e);
+    }
+    return;
+  }
+
   var record = {};
   setField(record, 'tasks', 'title', titleEl.value.trim());
   var el;
@@ -7826,6 +7840,10 @@ async function persistTaskFormFields(taskId) {
 }
 
 async function addSubtask(parentTaskId) {
+  if (isBusinessReferent()) {
+    showToast('Vous ne pouvez pas créer de sous-tâches.', 'error');
+    return;
+  }
   var parentTask = tasks.find(function(t) { return t.id === parentTaskId; });
   if (!canCreateTasks() || !canEditTask(parentTask)) {
     showToast('Vous ne pouvez pas créer de sous-tâches ici.', 'error');
@@ -7882,6 +7900,10 @@ function restoreModalScrollTop(pos) {
 }
 
 async function toggleSubtask(subtaskId, completed) {
+  if (isBusinessReferent()) {
+    showToast('Vous ne pouvez pas modifier les sous-tâches.', 'error');
+    return;
+  }
   var targetSubtask = subtasks.find(function(st) { return st.id === subtaskId; });
   var parentTask = targetSubtask && tasks.find(function(t) {
     return t.id === targetSubtask.Parent_Task_Id;
@@ -7925,6 +7947,10 @@ async function toggleSubtask(subtaskId, completed) {
 }
 
 async function deleteSubtask(subtaskId, parentTaskId) {
+  if (isBusinessReferent()) {
+    showToast('Vous ne pouvez pas supprimer de sous-tâches.', 'error');
+    return;
+  }
   var parentTask = tasks.find(function(t) { return t.id === parentTaskId; });
   if (!canDeleteTasks() || !canEditTask(parentTask)) {
     showToast('Vous ne pouvez pas supprimer cette sous-tâche.', 'error');
@@ -7956,6 +7982,10 @@ async function deleteSubtask(subtaskId, parentTaskId) {
 // Toggle pill selection for status/priority
 // Sélecteur de statut de sous-tâche (statuts personnalisés avec couleur réelle)
 function setStStatus(subtaskId, value, btn) {
+  if (isBusinessReferent()) {
+    showToast('Vous ne pouvez pas modifier les sous-tâches.', 'error');
+    return;
+  }
   var hidden = document.getElementById('st-status-' + subtaskId);
   if (hidden) hidden.value = value;
   var grp = btn.parentNode;
@@ -7969,6 +7999,10 @@ function setStStatus(subtaskId, value, btn) {
 
 // B2 : sélecteur de type de sous-tâche (sous-tâche / jalon)
 function setStType(subtaskId, value, btn) {
+  if (isBusinessReferent()) {
+    showToast('Vous ne pouvez pas modifier les sous-tâches.', 'error');
+    return;
+  }
   var hidden = document.getElementById('st-type-' + subtaskId);
   if (hidden) hidden.value = value;
   var grp = btn.parentNode;
@@ -7977,6 +8011,10 @@ function setStType(subtaskId, value, btn) {
 }
 
 function setStPill(field, subtaskId, value, btn) {
+  if (isBusinessReferent()) {
+    showToast('Vous ne pouvez pas modifier les sous-tâches.', 'error');
+    return;
+  }
   var group = document.getElementById('st-' + field + '-group-' + subtaskId);
   var hidden = document.getElementById('st-' + field + '-' + subtaskId);
   if (!group || !hidden) return;
@@ -7990,6 +8028,10 @@ function setStPill(field, subtaskId, value, btn) {
 
 // Édition inline d'une sous-tâche
 function startEditSubtask(subtaskId) {
+  if (isBusinessReferent()) {
+    showToast('Vous ne pouvez pas modifier les sous-tâches.', 'error');
+    return;
+  }
   var viewEl = document.getElementById('st-view-' + subtaskId);
   var editEl = document.getElementById('st-edit-' + subtaskId);
   if (viewEl) viewEl.style.display = 'none';
@@ -8015,6 +8057,10 @@ function filterStAssignees(subtaskId, query) {
 }
 
 async function saveEditSubtask(subtaskId, parentTaskId) {
+  if (isBusinessReferent()) {
+    showToast('Vous ne pouvez pas modifier les sous-tâches.', 'error');
+    return;
+  }
   var parentTask = tasks.find(function(t) { return t.id === parentTaskId; });
   if (!canEditTask(parentTask)) {
     showToast('Vous ne pouvez pas modifier cette sous-tâche.', 'error');
@@ -8075,6 +8121,10 @@ async function saveEditSubtask(subtaskId, parentTaskId) {
 }
 
 async function generateSubtaskOccurrences(subtaskId, parentTaskId) {
+  if (isBusinessReferent()) {
+    showToast('Vous ne pouvez pas générer des occurrences de sous-tâches.', 'error');
+    return;
+  }
   var parentTask = tasks.find(function(t) { return t.id === parentTaskId; });
   if (!canCreateTasks() || !canEditTask(parentTask)) {
     showToast('Vous ne pouvez pas créer de sous-tâches ici.', 'error');
@@ -8203,6 +8253,13 @@ async function removeDependency(taskId, dependsOnTaskId) {
 // =============================================================================
 
 async function addComment(taskId) {
+  if (isBusinessReferent()) {
+    var commentTaskPermission = tasks.find(function(t) { return Number(t.id) === Number(taskId); });
+    if (!canEditTask(commentTaskPermission)) {
+      showToast('Vous ne pouvez pas commenter cette tâche.', 'error');
+      return;
+    }
+  }
   var textarea = document.getElementById('new-comment-input');
   var content = textarea.value.trim();
   if (!content) return;
@@ -8379,6 +8436,10 @@ function renderCustomFieldInput(field, taskId, value) {
 }
 
 async function updateCustomFieldValue(taskId, fieldId, value) {
+  if (isBusinessReferent()) {
+    showToast('Vous ne pouvez pas modifier les champs personnalisés.', 'error');
+    return;
+  }
   var existing = customFieldValues.find(function(v) {
     return v.Task_Id === taskId && v.Field_Id === fieldId;
   });
@@ -8789,6 +8850,80 @@ async function updateTask(taskId) {
   var task = tasks.find(function(t) { return t.id === taskId; });
   var wasNotDone = task && task.Status !== 'done';
   var newStatus = document.getElementById('task-status').value;
+  var restrictedReferent = draftTaskId !== taskId && isBusinessReferent();
+
+  // Un Référent métier ne peut modifier que le statut de la tâche.
+  // Les champs de suivi du temps sont ajustés automatiquement lors du changement de statut.
+  if (restrictedReferent) {
+    if (!task) return;
+
+    if (newStatus === 'done' && isTaskBlocked(taskId)) {
+      var referentBlockers = getTaskDependencies(taskId).filter(function(b) {
+        return b && b.Status !== 'done';
+      });
+      var referentBlockerNames = referentBlockers.map(function(b) {
+        return b.Title;
+      }).join(', ');
+      showToast(
+        (currentLang === 'fr' ? 'Impossible : tâche bloquée par ' : 'Cannot complete: blocked by ') + referentBlockerNames,
+        'error'
+      );
+      return;
+    }
+
+    var referentRecord = {};
+    setField(referentRecord, 'tasks', 'status', newStatus);
+
+    var referentNow = Math.floor(Date.now() / 1000);
+    var referentOldStatus = task.Status;
+    var referentAccumulated = Number(task.Accumulated_Seconds) || 0;
+    var referentCurrentStart = Number(task.Current_Start_At) || 0;
+
+    if (referentOldStatus === 'progress' && newStatus !== 'progress') {
+      if (referentCurrentStart) {
+        referentAccumulated += Math.max(0, referentNow - referentCurrentStart);
+      }
+      referentRecord.Accumulated_Seconds = referentAccumulated;
+      referentRecord.Current_Start_At = null;
+    }
+
+    if (newStatus === 'progress' && referentOldStatus !== 'progress') {
+      referentRecord.Current_Start_At = referentNow;
+      if (!task.Started_At) referentRecord.Started_At = referentNow;
+    }
+
+    if (referentOldStatus === 'done' && newStatus !== 'done') {
+      referentRecord.Completed_At = null;
+    }
+
+    if (newStatus === 'done' && wasNotDone) {
+      referentRecord.Completed_At = referentNow;
+    }
+
+    try {
+      await grist.docApi.applyUserActions([
+        ['UpdateRecord', TASKS_TABLE, taskId, referentRecord]
+      ]);
+      showToast(t('taskUpdated'), 'success');
+
+      var referentChanges = {};
+      if (referentOldStatus !== newStatus) {
+        referentChanges.status = { from: referentOldStatus, to: newStatus };
+        logActivity('status_changed', taskId, task.Title, referentOldStatus + ' → ' + newStatus);
+        await evaluateAutomationRules(
+          Object.assign({}, task, referentRecord, { id: taskId }),
+          referentChanges
+        );
+      }
+
+      closeModalForce();
+      await loadAllData();
+    } catch (e) {
+      console.error('Error updating task status:', e);
+      showToast('Error: ' + e.message, 'error');
+    }
+    return;
+  }
 
   if (newStatus === 'done' && isTaskBlocked(taskId)) {
     var blockers = getTaskDependencies(taskId).filter(function(b) { return b && b.Status !== 'done'; });
@@ -9502,6 +9637,28 @@ function renderStatsView() {
   if (avgMinutes > 0 || avgDurationLabel === '') avgDurationLabel += avgMinutes + ' min';
 
   document.getElementById('stats-avg-time').textContent = avgDurationLabel.trim();
+
+  // Masquer les statistiques avancées au Référent métier.
+  var hideAdvancedStatsForReferent = isBusinessReferent();
+
+  [
+    'stats-workload-card',
+    'stats-timeline-card',
+    'stats-summary-card',
+    'stats-activity-card'
+  ].forEach(function(id) {
+    var card = document.getElementById(id);
+    if (!card) return;
+
+    card.style.display = hideAdvancedStatsForReferent ? 'none' : '';
+
+    // Masquer également la ligne dédiée aux graphiques concernés.
+    if (card.parentElement &&
+        card.parentElement.classList.contains('stats-charts-row')) {
+      card.parentElement.style.display =
+        hideAdvancedStatsForReferent ? 'none' : '';
+    }
+  });
 
   // Workload chart - Risk of overload per user
   renderWorkloadChart();
