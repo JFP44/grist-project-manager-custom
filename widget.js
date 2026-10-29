@@ -1771,6 +1771,10 @@ function switchTab(tabId) {
   document.querySelectorAll('.tab-content').forEach(function(tc) {
     tc.classList.toggle('active', tc.id === 'tab-' + tabId);
   });
+
+  // Actualiser les filtres selon l'onglet actif et le rôle.
+  renderProjectSelector();
+
   // Save active tab to localStorage
   localStorage.setItem('pm-active-tab', tabId);
   
@@ -2873,44 +2877,68 @@ function renderProjectSelector() {
     });
   });
 
-  // Projets visibles
-  var visibleProjects = projects;
-  // Tous les projets sont visibles ; le filtre Personne s'applique ensuite sur Lead.
+  // Projets visibles selon le rôle et les filtres sélectionnés.
+  var visibleProjects = projects.filter(function(p) {
+    return canViewProject(p);
+  });
+
+  // Filtre Personne : projets dont cette personne est responsable (Lead).
   if (currentFilterAssignee) {
     var selectedEmail = String(currentFilterAssignee).trim().toLowerCase();
 
-    // Projets gérés par la personne :
-    // PM_Projects.Lead contient directement son adresse e-mail.
-    var filtered = visibleProjects.filter(function(p) {
+    visibleProjects = visibleProjects.filter(function(p) {
       return String(p.Lead || '').trim().toLowerCase() === selectedEmail;
     });
+  }
 
-    visibleProjects = filtered;
+  // Filtre Service : applicable à tous les rôles.
+  if (currentFilterServiceDemandeur) {
+    var selectedService = String(currentFilterServiceDemandeur).trim().toLowerCase();
+
+    visibleProjects = visibleProjects.filter(function(p) {
+      return String(p.SERVICE_DEMANDEUR || '').trim().toLowerCase() === selectedService;
+    });
+  }
+
+  // Filtre Statut : applicable à tous les rôles.
+  if (currentFilterTag) {
+    var selectedStatus = String(currentFilterTag).trim().toLowerCase();
+
+    visibleProjects = visibleProjects.filter(function(p) {
+      return String(p.Status || '').trim().toLowerCase() === selectedStatus;
+    });
   }
 
   var html = '';
 
-  // Filtre Personne
-  var personOptions = [];
-  visibleUsers.forEach(function(u) {
-    var val = u.Email || u.Name;
-    var label = u.Name || u.Email;
-    if (val) personOptions.push({ value: val, label: label });
-  });
-  html += buildFilterCombo('person', currentLang === 'fr' ? '— Personne —' : '— Person —', personOptions, currentFilterAssignee, filterByAssignee);
+  // Masquer Personne et SERVICE DEMANDEUR pour le Référent métier dans Stats.
+  var statsTab = document.getElementById('tab-stats');
+  var hideReferentStatsFilters = isBusinessReferent() &&
+    statsTab && statsTab.classList.contains('active');
 
-  // Filtre SERVICE DEMANDEUR
-  var serviceDemandeurOptions = PM_SERVICES.map(function(s) {
-    return { value: s, label: s };
-  });
+  if (!hideReferentStatsFilters) {
+    // Filtre Personne
+    var personOptions = [];
+    visibleUsers.forEach(function(u) {
+      var val = u.Email || u.Name;
+      var label = u.Name || u.Email;
+      if (val) personOptions.push({ value: val, label: label });
+    });
+    html += buildFilterCombo('person', currentLang === 'fr' ? '— Personne —' : '— Person —', personOptions, currentFilterAssignee, filterByAssignee);
 
-  html += buildFilterCombo(
-    'serviceDemandeur',
-    '— SERVICE DEMANDEUR —',
-    serviceDemandeurOptions,
-    currentFilterServiceDemandeur,
-    filterByServiceDemandeur
-  );
+    // Filtre SERVICE DEMANDEUR
+    var serviceDemandeurOptions = PM_SERVICES.map(function(s) {
+      return { value: s, label: s };
+    });
+
+    html += buildFilterCombo(
+      'serviceDemandeur',
+      '— SERVICE DEMANDEUR —',
+      serviceDemandeurOptions,
+      currentFilterServiceDemandeur,
+      filterByServiceDemandeur
+    );
+  }
 
   // Filtre Tag
   var tagOptions = tags.map(function(tag) { return { value: tag.Name, label: tag.Name }; });
@@ -2929,36 +2957,26 @@ function renderProjectSelector() {
   html += '</button>';
   html += '<div class="proj-dropdown" id="project-dropdown">';
   html += '<div class="proj-dropdown-search"><input type="text" id="proj-search-input" placeholder="' + (currentLang === 'fr' ? 'Rechercher...' : 'Search...') + '" oninput="filterProjectDropdown(this.value)" autocomplete="off"></div>';
-  var PROJ_INITIAL_LIMIT = 5;
   html += '<div class="proj-dropdown-list" id="proj-dropdown-list">';
   // "All projects" option (always shown)
   html += '<div class="proj-option' + (!currentProjectId ? ' selected' : '') + '" data-id="" data-name="" data-always="1" onclick="selectProjectOption(\'\')">';
   html += '<span class="proj-dot" style="background:#94a3b8;opacity:.4;"></span>';
   html += '<span>' + (currentLang === 'fr' ? 'Tous les projets' : 'All projects') + '</span>';
   html += '</div>';
-  // Project options — first 5 visible, rest hidden until search
+  // Tous les projets sont visibles, même sans tâche.
   var allTasksForCount = tasks;
-  var extraCount = Math.max(0, visibleProjects.length - PROJ_INITIAL_LIMIT);
   visibleProjects.forEach(function(proj, idx) {
     var taskCount = allTasksForCount.filter(function(tt) { return tt.Project_Id === proj.id; }).length;
     var isSelected = currentProjectId === proj.id;
     var safeName = sanitize(proj.Name || '');
-    var isExtra = idx >= PROJ_INITIAL_LIMIT && !isSelected;
     html += '<div class="proj-option' + (isSelected ? ' selected' : '') + '"';
     html += ' data-id="' + proj.id + '" data-name="' + safeName + '"';
-    if (isExtra) html += ' data-extra="1" style="display:none;"';
     html += ' onclick="selectProjectOption(' + proj.id + ')">';
     html += '<span class="proj-dot" style="background:' + (proj.Color || '#6366f1') + ';"></span>';
     html += '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;">' + safeName + '</span>';
     if (taskCount > 0) html += '<span class="proj-count">' + taskCount + '</span>';
     html += '</div>';
   });
-  // "More" hint shown when no search active
-  if (extraCount > 0) {
-    html += '<div id="proj-more-hint" style="padding:6px 12px;font-size:11px;color:#94a3b8;text-align:center;border-top:1px solid #f1f5f9;">';
-    html += '+ ' + extraCount + ' ' + (currentLang === 'fr' ? 'autres — tapez pour chercher' : 'more — type to search');
-    html += '</div>';
-  }
   html += '</div></div></div>';
 
   if (currentFilterRole || currentFilterAssignee || currentFilterServiceDemandeur || currentFilterTag || currentProjectId) {
@@ -3195,15 +3213,11 @@ function filterProjectDropdown(query) {
   var opts = list.querySelectorAll('.proj-option');
 
   if (!q) {
-    // No query: show first 5 only (restore data-extra hidden state)
+    // Sans recherche, afficher tous les projets.
     opts.forEach(function(opt) {
-      if (opt.dataset.always === '1' || !opt.dataset.extra) {
-        opt.style.display = '';
-      } else {
-        opt.style.display = 'none';
-      }
+      opt.style.display = '';
     });
-    if (hint) hint.style.display = '';
+    if (hint) hint.style.display = 'none';
   } else {
     // Query: show all matching, hide non-matching
     opts.forEach(function(opt) {
@@ -9008,7 +9022,7 @@ var WIDGET_TABS = [
   { id: 'kanban',    label_fr: 'Kanban',       label_en: 'Kanban' },
   { id: 'table',     label_fr: 'Tableau',      label_en: 'Table' },
   { id: 'gantt',     label_fr: 'Gantt',        label_en: 'Gantt' },
-    { id: 'stats',     label_fr: 'Stats',        label_en: 'Stats',      ownerOnly: true },
+  { id: 'stats',     label_fr: 'Stats',        label_en: 'Stats' },
   { id: 'team',      label_fr: 'Équipe',       label_en: 'Team',       ownerOnly: true },
   { id: 'settings',  label_fr: 'Paramètres',   label_en: 'Settings',   ownerOnly: true }
 ];
@@ -9130,9 +9144,17 @@ function isBusinessReferentOnProject(project) {
 function canViewProject(project) {
   if (!project) return false;
 
+  // Les autres rôles voient tous les projets par défaut.
   if (!isBusinessReferent()) return true;
 
-  return isBusinessReferentOnProject(project);
+  // Le référent métier ne voit que les projets de son service.
+  var currentUser = getCurrentUser();
+  if (!currentUser) return false;
+
+  var userService = String(currentUser.Service || '').trim().toLowerCase();
+  var projectService = String(project.SERVICE_DEMANDEUR || '').trim().toLowerCase();
+
+  return userService !== '' && projectService === userService;
 }
 
 function canManageUsers() {
@@ -9159,7 +9181,7 @@ function isTabAllowed(tabId) {
   if (tabId === 'team') return canManageUsers();
   if (userAllowedTabs.length > 0) return userAllowedTabs.indexOf(tabId) !== -1;
   if (isOwner) return true;
-  var ownerTabs = ['team', 'stats', 'settings'];
+  var ownerTabs = ['team', 'settings'];
   return ownerTabs.indexOf(tabId) === -1;
 }
 
@@ -9195,9 +9217,11 @@ function applyOwnerRestrictions() {
 function renderStatsView() {
   var filteredTasks = getFilteredTasks();
 
-  // Projets concernés par les sélecteurs existants
-  // (les statistiques de cette vue portent sur les projets, pas les tâches)
-  var filteredProjects = projects.slice();
+  // Projets autorisés pour l'utilisateur connecté, puis filtres statistiques.
+  // Un référent métier ne voit que les projets de son service.
+  var filteredProjects = projects.filter(function(p) {
+    return canViewProject(p);
+  });
 
   if (currentFilterRole) {
     var projectIdsFromRoleFilter = {};
@@ -9906,9 +9930,29 @@ function renderProjectList() {
     return;
   }
 
-  // Tri du plus récent au plus ancien (id décroissant)
+  // Visibilité par rôle, puis application des filtres globaux.
   var sorted = projects.filter(function(p) {
-    return canViewProject(p);
+    if (!canViewProject(p)) return false;
+
+    if (currentFilterAssignee &&
+        String(p.Lead || '').trim().toLowerCase() !==
+        String(currentFilterAssignee).trim().toLowerCase()) {
+      return false;
+    }
+
+    if (currentFilterServiceDemandeur &&
+        String(p.SERVICE_DEMANDEUR || '').trim().toLowerCase() !==
+        String(currentFilterServiceDemandeur).trim().toLowerCase()) {
+      return false;
+    }
+
+    if (currentFilterTag &&
+        String(p.Status || '').trim().toLowerCase() !==
+        String(currentFilterTag).trim().toLowerCase()) {
+      return false;
+    }
+
+    return true;
   }).sort(function(a, b) {
     return (b.id || 0) - (a.id || 0);
   });
@@ -12388,7 +12432,7 @@ if (!isInsideGrist()) {
         ]);
       }
 
-      // Toujours rétablir l'adresse de l'utilisateur connecté avant de la lire.
+      // Configurer user.Email comme formule déclenchée, pas comme formule calculée.
       await grist.docApi.applyUserActions([
         ['ModifyColumn', USER_INFO_TABLE, 'UserEmail', {
           isFormula: false,
@@ -12469,6 +12513,25 @@ if (!isInsideGrist()) {
     await ensureTables();
     await loadSettings();
     await loadAllData();
+
+    // DIAGNOSTIC TEMPORAIRE — identification et filtrage
+    var diagUser = getCurrentUser();
+    console.log('[DIAG REFERENT METIER]', {
+      emailDetecte: currentUserEmail,
+      utilisateurTrouve: diagUser ? {
+        nom: diagUser.Name,
+        email: diagUser.Email,
+        role: diagUser.Role,
+        service: diagUser.Service
+      } : null,
+      roleDetecte: getCurrentUserRole(),
+      estReferentMetier: isBusinessReferent(),
+      nombreTotalProjets: projects.length,
+      nombreProjetsVisibles: projects.filter(function(p) {
+        return canViewProject(p);
+      }).length
+    });
+
     applyOwnerRestrictions();
     updateNotificationBadge();
     await checkTimeBasedAutomations();
