@@ -3700,6 +3700,8 @@ function getTasksForDate(date) {
   var dateEndTs = dateEnd.getTime() / 1000;
 
   return getFilteredTasks().filter(function(task) {
+    if (task.Status !== 'todo' && task.Status !== 'progress') return false;
+
     var taskStart = task.Start_Date;
     var taskEnd = task.Due_Date;
     if (!taskStart && !taskEnd) return false;
