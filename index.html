@@ -87,7 +87,7 @@
       border: none;
       background: none;
       cursor: pointer;
-      font-size: 12px;
+      font-size: 16px;
       font-weight: 600;
       color: #64748b;
       border-radius: 8px;
@@ -1347,13 +1347,43 @@
       background: #f8fafc;
       border-radius: 10px;
       padding: 8px;
-      cursor: pointer;
+      cursor: copy;
       transition: all 0.15s;
       border: 2px solid transparent;
+      position: relative;
     }
     .calendar-day:hover {
       background: #f1f5f9;
       border-color: #cbd5e1;
+    }
+    .calendar-add-task {
+      position: absolute;
+      top: 6px;
+      right: 8px;
+      z-index: 5;
+      width: auto;
+      height: 28px;
+      padding: 0 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 0;
+      border-radius: 6px;
+      background: #dbeafe;
+      color: #1d4ed8;
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+    .calendar-day:hover .calendar-add-task {
+      opacity: 1;
+    }
+    .calendar-day:has(.day-task:hover) .calendar-add-task {
+      opacity: 0;
+      pointer-events: none;
     }
     .calendar-day.other-month {
       opacity: 0.4;
@@ -1398,10 +1428,19 @@
       overflow: hidden;
       text-overflow: ellipsis;
       cursor: pointer;
-      transition: transform 0.1s;
+      transition: transform 0.1s, outline-color 0.1s;
     }
     .day-task:hover {
       transform: scale(1.02);
+      outline: 2px solid #2563eb;
+      outline-offset: 1px;
+      cursor: pointer;
+    }
+    .calendar-day:has(.day-task:hover) {
+      cursor: copy;
+    }
+    .calendar-day:has(.day-task:hover)::after {
+      opacity: 0;
     }
     .day-task.status-todo {
       background: #fef3c7;

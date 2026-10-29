@@ -53,10 +53,6 @@ var i18n = {
     ganttCustom: 'Personnalisé',
     ganttRangeFrom: 'Du :',
     ganttRangeTo: 'au :',
-    extensionDate: 'Date de prolongation',
-    extensionTooltip: 'Prolongation : dépassement de l\'échéance',
-    autoExtend: 'Prolongation auto',
-    autoExtendHint: 'Prolonge automatiquement jusqu\'à la date du jour tant que la tâche n\'est pas terminée',
     ganttFullYear: 'Année complète',
     ganttNavInfo: 'Navigation infinie vers autres années',
     ganttViewRange: 'Vue :',
@@ -395,10 +391,6 @@ var i18n = {
     ganttCustom: 'Custom',
     ganttRangeFrom: 'From:',
     ganttRangeTo: 'to:',
-    extensionDate: 'Extension date',
-    extensionTooltip: 'Extension: overdue beyond deadline',
-    autoExtend: 'Auto extend',
-    autoExtendHint: 'Automatically extends to today until the task is completed',
     ganttFullYear: 'Full year',
     ganttNavInfo: 'Infinite navigation to other years',
     ganttViewRange: 'View:',
@@ -1834,6 +1826,9 @@ async function ensureTables() {
           { id: 'Recurrence', type: 'Choice', widgetOptions: JSON.stringify({ choices: ['none', 'daily', 'weekly', 'monthly'] }) },
           { id: 'Estimated_Hours', type: 'Numeric' },
           { id: 'Created_At', type: 'Date' },
+          { id: 'Started_At', type: 'Date' },
+          { id: 'Current_Start_At', type: 'Date' },
+          { id: 'Accumulated_Seconds', type: 'Numeric' },
           { id: 'Completed_At', type: 'Date' }
         ]]
       ]);
@@ -2283,6 +2278,15 @@ async function ensureTables() {
           ]);
         }
 
+        if (existingCols.indexOf('Started_At') === -1) {
+          await grist.docApi.applyUserActions([['AddColumn', TASKS_TABLE, 'Started_At', { type: 'Date' }]]);
+        }
+        if (existingCols.indexOf('Current_Start_At') === -1) {
+          await grist.docApi.applyUserActions([['AddColumn', TASKS_TABLE, 'Current_Start_At', { type: 'Date' }]]);
+        }
+        if (existingCols.indexOf('Accumulated_Seconds') === -1) {
+          await grist.docApi.applyUserActions([['AddColumn', TASKS_TABLE, 'Accumulated_Seconds', { type: 'Numeric' }]]);
+        }
         if (existingCols.indexOf('Completed_At') === -1) {
           await grist.docApi.applyUserActions([['AddColumn', TASKS_TABLE, 'Completed_At', { type: 'Date' }]]);
         }
@@ -2437,6 +2441,9 @@ async function loadAllData() {
         task.Recurrence = taskData[recurrenceCol] ? taskData[recurrenceCol][i] : 'none';
         task.Estimated_Hours = taskData[estimatedHoursCol] ? taskData[estimatedHoursCol][i] : 0;
         task.Created_At = taskData[createdAtCol] ? taskData[createdAtCol][i] : null;
+        task.Started_At = taskData.Started_At ? taskData.Started_At[i] : null;
+        task.Current_Start_At = taskData.Current_Start_At ? taskData.Current_Start_At[i] : null;
+        task.Accumulated_Seconds = taskData.Accumulated_Seconds ? (Number(taskData.Accumulated_Seconds[i]) || 0) : 0;
         task.Completed_At = taskData.Completed_At ? taskData.Completed_At[i] : null;
         task.Project_Id = taskData[projectIdCol] ? taskData[projectIdCol][i] : null;
 
@@ -3566,6 +3573,7 @@ function renderCalendarDay(dayNum, date, dayTasks, isOtherMonth, isToday, isWeek
   if (isWeekend) classes += ' weekend';
 
   var html = '<div class="' + classes + '" onclick="onCalendarDayClick(\'' + dateStr + '\')" ondragover="onCalendarDragOver(event)" ondrop="onCalendarDrop(event, \'' + dateStr + '\')">';
+  html += '<button type="button" class="calendar-add-task" title="Nouvelle tâche" aria-label="Nouvelle tâche" onclick="event.stopPropagation(); onCalendarDayClick(\'' + dateStr + '\')">+ Nouvelle tâche</button>';
   if (!isWeekView) {
     html += '<div class="day-number">' + dayNum + '</div>';
   }
@@ -3576,7 +3584,7 @@ function renderCalendarDay(dayNum, date, dayTasks, isOtherMonth, isToday, isWeek
     var task = dayTasks[i];
     var statusClass = 'status-' + task.Status;
     var priorityClass = task.Priority === 'high' ? ' priority-high' : '';
-    html += '<div class="day-task ' + statusClass + priorityClass + '" draggable="true" ondragstart="onCalendarTaskDragStart(event, ' + task.id + ')" onclick="event.stopPropagation(); openEditTaskModal(' + task.id + ')" title="' + sanitize(task.Title) + '">';
+    html += '<div class="day-task ' + statusClass + priorityClass + '" draggable="true" ondragstart="onCalendarTaskDragStart(event, ' + task.id + ')" onclick="event.stopPropagation(); openEditTaskModal(' + task.id + ')" title="✏️ Ouvrir la tâche : ' + sanitize(task.Title) + '">';
     html += sanitize(task.Title);
     html += '</div>';
   }
@@ -3828,7 +3836,7 @@ function renderCalendarMobileView() {
     html += '<div class="day-tasks">';
     for (var i = 0; i < dayTasks.length; i++) {
       var task = dayTasks[i];
-      html += '<div class="day-task status-' + task.Status + '" onclick="event.stopPropagation(); openEditTaskModal(' + task.id + ')" title="' + sanitize(task.Title) + '">' + sanitize(task.Title) + '</div>';
+      html += '<div class="day-task status-' + task.Status + '" onclick="event.stopPropagation(); openEditTaskModal(' + task.id + ')" title="✏️ Ouvrir la tâche : ' + sanitize(task.Title) + '">' + sanitize(task.Title) + '</div>';
     }
     if (dayTasks.length === 0) {
       html += '<span class="mobile-no-task">\u2014</span>';
@@ -4782,30 +4790,6 @@ function ganttChevron(task) {
   return '<button type="button" class="gantt-toggle' + (expanded ? ' gantt-toggle-open' : '') + '" onclick="event.stopPropagation();toggleGanttSubtasks(' + task.id + ')" title="' + (currentLang === 'fr' ? 'Sous-tâches' : 'Subtasks') + '">' + icon + '</button>';
 }
 
-function getTaskExtensionEnd(task) {
-  if (task.Auto_Extend && task.Status !== 'done' && task.Status !== 'archived') {
-    var now = new Date(); now.setHours(23, 59, 59, 999);
-    var dueDate = task.Due_Date ? new Date(task.Due_Date * 1000) : null;
-    if (dueDate && now > dueDate) return now;
-  }
-  if (task.Extension_Date) {
-    var ext = new Date(task.Extension_Date * 1000);
-    ext.setHours(23, 59, 59, 999);
-    return ext;
-  }
-  return null;
-}
-
-function getExtensionBarColor(task) {
-  var statuses = getKanbanStatuses();
-  for (var si = 0; si < statuses.length; si++) {
-    if (statuses[si].key === task.Status && statuses[si].color) return statuses[si].color;
-  }
-  if (task.Status === 'done') return '#22c55e';
-  if (task.Status === 'progress') return '#f59e0b';
-  return '#3b82f6';
-}
-
 function getGanttBarColor(task) {
   var statuses = getKanbanStatuses();
   for (var si = 0; si < statuses.length; si++) {
@@ -5013,9 +4997,6 @@ function renderGanttView() {
 
       // C2 : geometrie au jour pres a l'interieur de la semaine
       var wGeom = ganttBarGeom(tStart, tEnd, weeks, weekColW);
-      var extEnd = getTaskExtensionEnd(task);
-      var wExtGeom = (extEnd && tEnd && extEnd > tEnd) ? ganttBarGeom(tEnd, extEnd, weeks, weekColW) : null;
-      var extColor = getExtensionBarColor(task);
 
       for (var wi = 0; wi < weeks.length; wi++) {
         html += '<td class="gantt-cell' + (wi === wTodayIdx ? ' today-col' : '') + '" style="position:relative;min-width:' + weekColW + 'px;">';
@@ -5024,9 +5005,6 @@ function renderGanttView() {
         }
         if (wGeom && wi === wGeom.idx) {
           html += '<div class="gantt-bar ' + barClass + '" style="left:' + wGeom.left + 'px;width:' + wGeom.width + 'px;cursor:pointer;' + barCustomStyle + '" title="' + sanitize(task.Title) + '" onclick="if (!isBusinessReferent()) openEditTaskModal(' + task.id + ')">' + sanitize(task.Title) + '</div>';
-        }
-        if (wExtGeom && wi === wExtGeom.idx) {
-          html += '<div class="gantt-bar-extension" title="' + t('extensionTooltip') + ' — ' + sanitize(task.Title) + '" style="left:' + wExtGeom.left + 'px;width:' + wExtGeom.width + 'px;border-color:' + extColor + ';background:' + extColor + '20;"></div>';
         }
         html += '</td>';
       }
@@ -5121,18 +5099,6 @@ function renderGanttView() {
         }
       }
 
-      var yExtEnd = getTaskExtensionEnd(task);
-      var yExtStart = -1, yExtEndIdx = -1;
-      if (yExtEnd && yTEnd && yExtEnd > yTEnd) {
-        for (var yme = 0; yme < totalMonths; yme++) {
-          var yre = startYr + Math.floor(yme / 12); var moe = yme % 12;
-          var mse = new Date(yre, moe, 1); var mee = new Date(yre, moe + 1, 0, 23, 59, 59, 999);
-          // Démarrer la prolongation le mois SUIVANT la fin de tâche (évite le chevauchement)
-          if (mse > yTEnd && yExtEnd >= mse) { if (yExtStart === -1) yExtStart = yme; yExtEndIdx = yme; }
-        }
-      }
-      var yExtColor = getExtensionBarColor(task);
-
       for (var ym = 0; ym < totalMonths; ym++) {
         var yr2 = startYr + Math.floor(ym / 12);
         var mo2 = ym % 12;
@@ -5141,10 +5107,6 @@ function renderGanttView() {
         if (ym === yBarStart) {
           var yBarW = (yBarEnd - yBarStart + 1) * colWidth;
           html += '<div class="gantt-bar ' + barClass + '" style="left:2px;width:' + yBarW + 'px;cursor:pointer;' + barCustomStyle + '" title="' + sanitize(task.Title) + '" onclick="if (!isBusinessReferent()) openEditTaskModal(' + task.id + ')">' + sanitize(task.Title) + '</div>';
-        }
-        if (ym === yExtStart && yExtStart >= 0) {
-          var yExtW = (yExtEndIdx - yExtStart + 1) * colWidth;
-          html += '<div class="gantt-bar-extension" title="' + t('extensionTooltip') + ' — ' + sanitize(task.Title) + '" style="left:2px;width:' + yExtW + 'px;border-color:' + yExtColor + ';background:' + yExtColor + '20;"></div>';
         }
         html += '</td>';
       }
@@ -5234,9 +5196,6 @@ function renderGanttView() {
 
       // C3 : geometrie au jour pres a l'interieur du mois
       var mGeom = ganttBarGeom(mTStart, mTEnd, months, monthColW);
-      var mExtEnd = getTaskExtensionEnd(task);
-      var mExtGeom = (mExtEnd && mTEnd && mExtEnd > mTEnd) ? ganttBarGeom(mTEnd, mExtEnd, months, monthColW) : null;
-      var mExtColor = getExtensionBarColor(task);
 
       for (var m = 0; m < 12; m++) {
         var isTodayMonth = (ganttYear === todayYear && m === todayMonth);
@@ -5246,9 +5205,6 @@ function renderGanttView() {
         }
         if (mGeom && m === mGeom.idx) {
           html += '<div class="gantt-bar ' + barClass + '" style="left:' + mGeom.left + 'px;width:' + mGeom.width + 'px;cursor:pointer;' + barCustomStyle + '" title="' + sanitize(task.Title) + '" onclick="if (!isBusinessReferent()) openEditTaskModal(' + task.id + ')">' + sanitize(task.Title) + '</div>';
-        }
-        if (mExtGeom && m === mExtGeom.idx) {
-          html += '<div class="gantt-bar-extension" title="' + t('extensionTooltip') + ' — ' + sanitize(task.Title) + '" style="left:' + mExtGeom.left + 'px;width:' + mExtGeom.width + 'px;border-color:' + mExtColor + ';background:' + mExtColor + '20;"></div>';
         }
         html += '</td>';
       }
@@ -5371,19 +5327,6 @@ function renderGanttView() {
       }
     }
 
-    var dExtEnd = getTaskExtensionEnd(task);
-    var dExtStartIdx = -1, dExtEndIdx = -1;
-    if (dExtEnd && tEnd && dExtEnd > tEnd) {
-      var dExtDay = new Date(dExtEnd); dExtDay.setHours(0, 0, 0, 0);
-      for (var dei = 0; dei < days.length; dei++) {
-        if (days[dei] >= tEnd && days[dei] <= dExtDay) {
-          if (dExtStartIdx === -1) dExtStartIdx = dei;
-          dExtEndIdx = dei;
-        }
-      }
-    }
-    var dExtColor = getExtensionBarColor(task);
-
     for (var di = 0; di < days.length; di++) {
       var dd = days[di];
       var isToday = dd.getTime() === today.getTime();
@@ -5395,10 +5338,6 @@ function renderGanttView() {
         var spanDays = barEndIdx - barStartIdx + 1;
         var widthPx = spanDays * 36;
         html += '<div class="gantt-bar ' + barClass + '" style="left:2px;width:' + widthPx + 'px;cursor:pointer;' + barCustomStyle + '" title="' + sanitize(task.Title) + '" onclick="if (!isBusinessReferent()) openEditTaskModal(' + task.id + ')">' + sanitize(task.Title) + '</div>';
-      }
-      if (di === dExtStartIdx && dExtStartIdx >= 0) {
-        var dExtW = (dExtEndIdx - dExtStartIdx + 1) * 36;
-        html += '<div class="gantt-bar-extension" title="' + t('extensionTooltip') + ' — ' + sanitize(task.Title) + '" style="left:2px;width:' + dExtW + 'px;border-color:' + dExtColor + ';background:' + dExtColor + '20;"></div>';
       }
       html += '</td>';
     }
@@ -6919,7 +6858,6 @@ async function startNewTask(defaultStatus, dateStr, prefill) {
   if (prefill.estimatedHours) setField(record, 'tasks', 'estimatedHours', prefill.estimatedHours);
   if (currentProjectId) setField(record, 'tasks', 'projectId', currentProjectId);
   setField(record, 'tasks', 'createdAt', Math.floor(Date.now() / 1000));
-  record.Auto_Extend = true;
   if (dateStr) { setField(record, 'tasks', 'startDate', toEpoch(dateStr)); setField(record, 'tasks', 'dueDate', toEpoch(dateStr)); }
   try {
     var res = await grist.docApi.applyUserActions([['AddRecord', TASKS_TABLE, null, record]]);
@@ -7490,67 +7428,60 @@ function openEditTaskModal(taskId, preserveAssignees) {
   html += '<div class="detail-info-row"><span class="info-label">' + t('fieldAssignee') + ' :</span><span class="info-value">' + editAssignees.length + '</span></div>';
   html += '</div>';
 
-  // Time Tracking card
-  var totalTime = getTaskTotalTime(task.id);
-  var isTimerRunning = !!activeTimers[task.id];
-  var taskTimeEntries = getTaskTimeEntries(task.id);
-  html += '<div class="detail-card time-card">';
-  html += '<h4>⏱️ ' + t('timeTracking') + '</h4>';
-  
-  // Timer button
-  html += '<div class="timer-control">';
-  if (isTimerRunning) {
-    html += '<button class="timer-btn timer-stop" onclick="stopTimer(' + task.id + ')">⏹️ ' + t('stopTimer') + '</button>';
-    html += '<span class="timer-status running">● ' + t('timerRunning') + '</span>';
-  } else {
-    html += '<button class="timer-btn timer-start" onclick="startTimer(' + task.id + ')">▶️ ' + t('startTimer') + '</button>';
-  }
-  html += '</div>';
-  
-  // Manual time entry
-  html += '<div class="manual-time-entry" style="display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:wrap;">';
-  html += '<input type="number" id="manual-hours" min="0" max="99" placeholder="0" style="width:52px;" class="form-input" title="' + (currentLang === 'fr' ? 'Heures' : 'Hours') + '"> h';
-  html += '<input type="number" id="manual-minutes" min="0" max="59" placeholder="0" style="width:52px;" class="form-input" title="' + (currentLang === 'fr' ? 'Minutes' : 'Minutes') + '"> min';
-  html += '<button class="btn btn-secondary btn-sm" onclick="addManualTimeEntry(' + task.id + ')">+ ' + (currentLang === 'fr' ? 'Ajouter' : 'Add') + '</button>';
-  html += '</div>';
+  // Durée réelle cumulée : les périodes en pause ne sont pas comptées.
+  var elapsedSeconds = null;
+  var elapsedLabel = '';
+  var nowTs = Math.floor(Date.now() / 1000);
+  var accumulatedSeconds = Number(task.Accumulated_Seconds) || 0;
 
-  // Time summary
-  html += '<div class="time-summary">';
-  html += '<div class="detail-info-row"><span class="info-label">' + t('totalTime') + ' :</span><span class="info-value time-value">' + formatDuration(totalTime) + '</span></div>';
-  if (task.Estimated_Hours) {
-    var estimatedSec = task.Estimated_Hours * 3600;
-    var pctUsed = Math.round((totalTime / estimatedSec) * 100);
-    html += '<div class="detail-info-row"><span class="info-label">' + t('estimatedTime') + ' :</span><span class="info-value">' + task.Estimated_Hours + 'h (' + pctUsed + '%)</span></div>';
-  }
-  html += '</div>';
-  
-  // Recent time entries (newest first)
-  if (taskTimeEntries.length > 0) {
-    html += '<div class="time-entries">';
-    html += '<div class="time-entries-label">' + t('timeEntries') + ':</div>';
-    html += '<div style="max-height:120px;overflow-y:auto;">';
-    for (var tei = 0; tei < taskTimeEntries.length; tei++) {
-      var te = taskTimeEntries[tei];
-      html += '<div class="time-entry-item">';
-      html += '<span class="te-duration">' + formatDurationShort(te.Duration) + '</span>';
-      html += '<span class="te-date">' + formatTimeAgo(te.Start_Time) + '</span>';
-      html += '</div>';
+  if (!task.Started_At && task.Status === 'todo') {
+    elapsedLabel = currentLang === 'fr' ? 'Pas encore démarrée' : 'Not started yet';
+  } else if (task.Status === 'progress') {
+    var currentStart = Number(task.Current_Start_At) || 0;
+    elapsedSeconds = accumulatedSeconds;
+    if (currentStart) {
+      elapsedSeconds += Math.max(0, nowTs - currentStart);
     }
-    html += '</div>';
-    html += '</div>';
+  } else if (task.Status === 'todo') {
+    elapsedSeconds = accumulatedSeconds;
+  } else if (task.Status === 'done') {
+    // Compatibilité avec les tâches terminées avant le suivi cumulatif.
+    elapsedSeconds = accumulatedSeconds;
+    if (elapsedSeconds === 0 && task.Started_At && task.Completed_At) {
+      elapsedSeconds = Math.max(0, Number(task.Completed_At) - Number(task.Started_At));
+    }
+  } else {
+    elapsedLabel = currentLang === 'fr'
+      ? 'Date réelle de début indisponible'
+      : 'Actual start date unavailable';
   }
+
+  if (elapsedSeconds !== null) {
+    var elapsedDays = Math.floor(elapsedSeconds / 86400);
+    var elapsedHours = Math.floor((elapsedSeconds % 86400) / 3600);
+    var elapsedMinutes = Math.floor((elapsedSeconds % 3600) / 60);
+    var durationParts = [];
+
+    if (elapsedDays > 0) {
+      durationParts.push(elapsedDays + (currentLang === 'fr' ? ' j' : ' d'));
+    }
+    if (elapsedHours > 0) {
+      durationParts.push(elapsedHours + ' h');
+    }
+    if (elapsedMinutes > 0 || durationParts.length === 0) {
+      durationParts.push(elapsedMinutes + (currentLang === 'fr' ? ' min' : ' min'));
+    }
+    elapsedLabel = durationParts.join(' ');
+  }
+
+  html += '<div class="detail-card time-card">';
+  html += '<h4>⏱️ ' + (currentLang === 'fr' ? 'Durée de la tâche' : 'Task duration') + '</h4>';
+  html += '<div class="detail-info-row">';
+  html += '<span class="info-label">' + (currentLang === 'fr' ? 'Temps écoulé' : 'Elapsed time') + ' :</span>';
+  html += '<span class="info-value time-value">' + elapsedLabel + '</span>';
+  html += '</div>';
   html += '</div>';
 
-  // Extension card
-  html += '<div class="detail-card">';
-  html += '<h4>📏 ' + t('extensionDate') + '</h4>';
-  var extDateVal = task.Extension_Date ? fromEpoch(task.Extension_Date) : '';
-  html += '<div style="margin-bottom:10px;"><input type="date" id="task-extension-date" value="' + extDateVal + '" style="width:100%;padding:6px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;" /></div>';
-  html += '<label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;">';
-  html += '<input type="checkbox" id="task-auto-extend" ' + (task.Auto_Extend ? 'checked' : '') + ' style="width:16px;height:16px;accent-color:#3b82f6;flex-shrink:0;margin-top:2px;" />';
-  html += '<span style="font-size:11px;color:#64748b;line-height:1.3;">' + t('autoExtendHint') + '</span>';
-  html += '</label>';
-  html += '</div>';
 
   // Recurrence card
   var hasRecurrence = task.Recurrence && task.Recurrence !== 'none';
@@ -7791,10 +7722,31 @@ async function quickAction(taskId, newStatus) {
 
   try {
     var qaRecord = { Status: newStatus };
-    if (newStatus === 'done' && wasNotDone) {
-      qaRecord.Completed_At = Math.floor(Date.now() / 1000);
-    } else if (newStatus !== 'done' && task && task.Status === 'done') {
+    var nowTs = Math.floor(Date.now() / 1000);
+    var oldStatus = task ? task.Status : null;
+    var accumulated = task ? (Number(task.Accumulated_Seconds) || 0) : 0;
+    var currentStart = task ? (Number(task.Current_Start_At) || 0) : 0;
+
+    // Fermer la période active lorsqu'on quitte « En cours ».
+    if (oldStatus === 'progress' && newStatus !== 'progress') {
+      if (currentStart) {
+        accumulated += Math.max(0, nowTs - currentStart);
+      }
+      qaRecord.Accumulated_Seconds = accumulated;
+      qaRecord.Current_Start_At = null;
+    }
+
+    if (newStatus === 'progress' && oldStatus !== 'progress') {
+      qaRecord.Current_Start_At = nowTs;
+      if (!task || !task.Started_At) qaRecord.Started_At = nowTs;
+    }
+
+    if (oldStatus === 'done' && newStatus !== 'done') {
       qaRecord.Completed_At = null;
+    }
+
+    if (newStatus === 'done' && wasNotDone) {
+      qaRecord.Completed_At = nowTs;
     }
 
     await grist.docApi.applyUserActions([
@@ -7855,8 +7807,6 @@ async function persistTaskFormFields(taskId) {
   if ((el = document.getElementById('task-project'))) setField(record, 'tasks', 'projectId', el.value ? parseInt(el.value) : 0);
   if ((el = document.getElementById('task-recurrence'))) setField(record, 'tasks', 'recurrence', el.value);
   if ((el = document.getElementById('task-tag'))) setField(record, 'tasks', 'tag', el.value.trim());
-  if ((el = document.getElementById('task-extension-date'))) record.Extension_Date = toEpoch(el.value);
-  if ((el = document.getElementById('task-auto-extend'))) record.Auto_Extend = el.checked;
   try { await grist.docApi.applyUserActions([['UpdateRecord', TASKS_TABLE, taskId, record]]); }
   catch (e) { console.error('persistTaskFormFields:', e); }
 }
@@ -8784,7 +8734,6 @@ async function createTask() {
   setField(record, 'tasks', 'projectId', projectId);
   setField(record, 'tasks', 'createdAt', Math.floor(Date.now() / 1000));
   // B4 : prolongation auto activée par défaut sur les nouvelles tâches (modifiable ensuite)
-  record.Auto_Extend = true;
 
   // Add Tag only if the element exists
   var tagEl = document.getElementById('task-tag');
@@ -8858,11 +8807,31 @@ async function updateTask(taskId) {
   setField(record, 'tasks', 'projectId', projectId);
   setField(record, 'tasks', 'recurrence', newRecurrence);
 
-  // Date réelle de fin : mémorisée au passage à "done"
-  if (newStatus === 'done' && wasNotDone) {
-    record.Completed_At = Math.floor(Date.now() / 1000);
-  } else if (newStatus !== 'done' && task && task.Status === 'done') {
+  // Suivi du temps actif, commun avec les actions rapides.
+  var nowTs = Math.floor(Date.now() / 1000);
+  var oldStatus = task ? task.Status : null;
+  var accumulated = task ? (Number(task.Accumulated_Seconds) || 0) : 0;
+  var currentStart = task ? (Number(task.Current_Start_At) || 0) : 0;
+
+  if (oldStatus === 'progress' && newStatus !== 'progress') {
+    if (currentStart) {
+      accumulated += Math.max(0, nowTs - currentStart);
+    }
+    record.Accumulated_Seconds = accumulated;
+    record.Current_Start_At = null;
+  }
+
+  if (newStatus === 'progress' && oldStatus !== 'progress') {
+    record.Current_Start_At = nowTs;
+    if (!task || !task.Started_At) record.Started_At = nowTs;
+  }
+
+  if (oldStatus === 'done' && newStatus !== 'done') {
     record.Completed_At = null;
+  }
+
+  if (newStatus === 'done' && wasNotDone) {
+    record.Completed_At = nowTs;
   }
   
   // Add Tag only if the element exists
@@ -8871,17 +8840,6 @@ async function updateTask(taskId) {
     setField(record, 'tasks', 'tag', tagEl.value.trim());
   }
 
-  // Extension fields
-  var extDateEl = document.getElementById('task-extension-date');
-  if (extDateEl) record.Extension_Date = toEpoch(extDateEl.value);
-  var autoExtEl = document.getElementById('task-auto-extend');
-  if (autoExtEl) record.Auto_Extend = autoExtEl.checked;
-
-  // Auto-freeze extension date when completing a task with auto-extend
-  if (newStatus === 'done' && task && task.Auto_Extend && task.Status !== 'done') {
-    record.Extension_Date = Math.floor(Date.now() / 1000);
-    record.Auto_Extend = false;
-  }
 
   try {
     await grist.docApi.applyUserActions([
