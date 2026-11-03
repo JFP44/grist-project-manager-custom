@@ -2303,18 +2303,26 @@ async function ensureTables() {
         }
         // Colonnes ACL : référents du projet associé à la tâche
         var aclActions = [];
+        var aclFormula1 = 'PM_Users.lookupOne(Name=$Project_Id.Referent_metier).Email if $Project_Id and $Project_Id.Referent_metier else None';
+        var aclFormula2 = 'PM_Users.lookupOne(Name=$Project_Id.c2eme_Referent_metier).Email if $Project_Id and $Project_Id.c2eme_Referent_metier else None';
+
         if (existingCols.indexOf('ACL_Referent_metier') === -1) {
           aclActions.push(['AddColumn', TASKS_TABLE, 'ACL_Referent_metier', {
-            type: 'Text',
-            isFormula: true,
-            formula: '$Project_Id.Referent_metier if $Project_Id else None'
+            type: 'Text', isFormula: true, formula: aclFormula1
+          }]);
+        } else {
+          aclActions.push(['ModifyColumn', TASKS_TABLE, 'ACL_Referent_metier', {
+            type: 'Text', isFormula: true, formula: aclFormula1
           }]);
         }
+
         if (existingCols.indexOf('ACL_2eme_Referent_metier') === -1) {
           aclActions.push(['AddColumn', TASKS_TABLE, 'ACL_2eme_Referent_metier', {
-            type: 'Text',
-            isFormula: true,
-            formula: '$Project_Id.c2eme_Referent_metier if $Project_Id else None'
+            type: 'Text', isFormula: true, formula: aclFormula2
+          }]);
+        } else {
+          aclActions.push(['ModifyColumn', TASKS_TABLE, 'ACL_2eme_Referent_metier', {
+            type: 'Text', isFormula: true, formula: aclFormula2
           }]);
         }
         if (aclActions.length > 0) {
