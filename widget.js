@@ -2301,6 +2301,26 @@ async function ensureTables() {
         if (existingCols.indexOf('Completed_At') === -1) {
           await grist.docApi.applyUserActions([['AddColumn', TASKS_TABLE, 'Completed_At', { type: 'Date' }]]);
         }
+        // Colonnes ACL : référents du projet associé à la tâche
+        var aclActions = [];
+        if (existingCols.indexOf('ACL_Referent_metier') === -1) {
+          aclActions.push(['AddColumn', TASKS_TABLE, 'ACL_Referent_metier', {
+            type: 'Text',
+            isFormula: true,
+            formula: '$Project_Id.Referent_metier if $Project_Id else None'
+          }]);
+        }
+        if (existingCols.indexOf('ACL_2eme_Referent_metier') === -1) {
+          aclActions.push(['AddColumn', TASKS_TABLE, 'ACL_2eme_Referent_metier', {
+            type: 'Text',
+            isFormula: true,
+            formula: '$Project_Id.c2eme_Referent_metier if $Project_Id else None'
+          }]);
+        }
+        if (aclActions.length > 0) {
+          await grist.docApi.applyUserActions(aclActions);
+        }
+
         if (existingCols.indexOf('Estimated_Hours') === -1) {
           await grist.docApi.applyUserActions([
             ['AddColumn', TASKS_TABLE, 'Estimated_Hours', { type: 'Numeric' }]
@@ -2330,6 +2350,7 @@ async function ensureTables() {
           await grist.docApi.applyUserActions([['AddColumn', TASKS_TABLE, 'Auto_Extend', { type: 'Bool' }]]);
         }
       } catch (migrationErr) {
+        console.error('[GristPM] Erreur migration PM_Tasks :', migrationErr);
       }
     }
 
