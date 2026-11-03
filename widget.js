@@ -2325,8 +2325,10 @@ async function ensureTables() {
             type: 'Text', isFormula: true, formula: aclFormula2
           }]);
         }
+        console.log('[GristPM] Migration ACL V2 exécutée', aclActions.length, 'actions');
         if (aclActions.length > 0) {
           await grist.docApi.applyUserActions(aclActions);
+          console.log('[GristPM] Migration ACL V2 terminée');
         }
 
         if (existingCols.indexOf('Estimated_Hours') === -1) {
