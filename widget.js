@@ -7161,6 +7161,86 @@ function openEditTaskModal(taskId, preserveAssignees) {
   html += '<div class="detail-field-value"><select id="task-group">' + groupOptions + '</select></div>';
   html += '</div>';
 
+
+  // === TASK DEPENDENCIES SECTION ===
+  {
+    var taskBlockers = getTaskDependencies(task.id);
+    var incompleteBlockers = taskBlockers.filter(function(b) {
+      return b.Status !== 'done';
+    });
+    var canManageDependencies = canManageTaskDependencies();
+
+    html += '<div class="subtasks-section" style="margin-bottom:16px;">';
+    html += '<div class="subtasks-header">';
+    html += '<span class="detail-field-icon">🔗</span>';
+    html += '<span class="detail-field-label">Dépendances</span>';
+    html += '<span class="subtask-badge">' + taskBlockers.length + '</span>';
+    html += '</div>';
+
+    if (incompleteBlockers.length > 0) {
+      html += '<div class="blocked-badge" style="margin:8px 0;padding:10px;">';
+      html += '⚠️ Prérequis non terminés : ';
+      html += incompleteBlockers.map(function(b) {
+        return sanitize(b.Title);
+      }).join(', ');
+      html += '</div>';
+    }
+
+    if (taskBlockers.length === 0) {
+      html += '<div class="subtasks-empty">Aucune dépendance définie.</div>';
+    } else {
+      taskBlockers.forEach(function(depTask) {
+        html += '<div style="padding:7px 0;border-bottom:1px solid var(--border-color,#e2e8f0);">';
+        html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">';
+        html += '<strong>' + sanitize(depTask.Title) + '</strong>';
+        if (canManageDependencies) {
+          html += '<button type="button" class="btn btn-sm" onclick="removeDependency(' +
+            Number(task.id) + ',' + Number(depTask.id) + ')">Retirer</button>';
+        }
+        html += '</div>';
+        html += '<div style="font-size:11px;color:#64748b;">';
+        html += sanitize(getProjectName(Number(depTask.Project_Id)));
+        html += ' · ' + sanitize(statusLabel(depTask.Status));
+        html += '</div></div>';
+      });
+    }
+
+    if (canManageDependencies) {
+      var existingDependencyIds = dependencies
+        .filter(function(d) { return Number(d.Task_Id) === Number(task.id); })
+        .map(function(d) { return Number(d.Depends_On_Task_Id); });
+
+      var dependencyCandidates = tasks.filter(function(candidate) {
+        if (Number(candidate.id) === Number(task.id)) return false;
+        if (existingDependencyIds.indexOf(Number(candidate.id)) !== -1) return false;
+        var candidateProject = projects.find(function(p) {
+          return Number(p.id) === Number(candidate.Project_Id);
+        });
+        return !candidateProject || canViewProject(candidateProject);
+      });
+
+      html += '<div style="display:flex;gap:8px;align-items:center;margin-top:12px;">';
+      html += '<select id="dep-select" style="flex:1;min-width:0;">';
+      html += '<option value="">Choisir une tâche préalable…</option>';
+
+      dependencyCandidates.forEach(function(candidate) {
+        var projectName = getProjectName(Number(candidate.Project_Id));
+        html += '<option value="' + Number(candidate.id) + '">' +
+          sanitize(candidate.Title) + ' — ' + sanitize(projectName) +
+          ' (' + sanitize(statusLabel(candidate.Status)) + ')</option>';
+      });
+
+      html += '</select>';
+      html += '<button type="button" class="btn btn-sm" onclick="addDependency(' +
+        Number(task.id) + ')"' +
+        (dependencyCandidates.length === 0 ? ' disabled' : '') +
+        '>Ajouter</button>';
+      html += '</div>';
+    }
+
+    html += '</div>';
+  }
+
   // === SUBTASKS SECTION ===
   var taskSubtasks = getTaskSubtasks(task.id);
   html += '<div class="subtasks-section">';
@@ -8215,7 +8295,10 @@ async function generateSubtaskOccurrences(subtaskId, parentTaskId) {
 
 async function addDependency(taskId) {
   var dependencyTask = tasks.find(function(t) { return t.id === taskId; });
-  if (!canEditTask(dependencyTask)) { showToast('Vous ne pouvez pas modifier les dépendances de cette tâche.', 'error'); return; }
+  if (!canManageTaskDependencies() || !canEditTask(dependencyTask)) {
+    showToast('Seuls les administrateurs, développeurs et superviseurs peuvent modifier les dépendances.', 'error');
+    return;
+  }
   var select = document.getElementById('dep-select');
   var dependsOnId = parseInt(select.value);
   if (!dependsOnId) return;
@@ -8250,7 +8333,10 @@ async function addDependency(taskId) {
 
 async function removeDependency(taskId, dependsOnTaskId) {
   var dependencyTask = tasks.find(function(t) { return t.id === taskId; });
-  if (!canEditTask(dependencyTask)) { showToast('Vous ne pouvez pas modifier les dépendances de cette tâche.', 'error'); return; }
+  if (!canManageTaskDependencies() || !canEditTask(dependencyTask)) {
+    showToast('Seuls les administrateurs, développeurs et superviseurs peuvent modifier les dépendances.', 'error');
+    return;
+  }
   var dep = dependencies.find(function(d) {
     return d.Task_Id === taskId && d.Depends_On_Task_Id === dependsOnTaskId;
   });
@@ -8876,12 +8962,16 @@ async function updateTask(taskId) {
   if (draftTaskId === taskId && !canCreateTasks()) { showToast('Vous ne pouvez pas créer de tâches.', 'error'); return; }
   var title = document.getElementById('task-title').value.trim();
   if (!title) return;
-  if (draftTaskId === taskId) draftTaskId = null; // ce brouillon devient une vraie tâche
+  var isDraftTask = draftTaskId === taskId;
+  var dependencySelect = document.getElementById('dep-select');
+  var selectedDependencyId = (isDraftTask && dependencySelect && dependencySelect.value)
+    ? parseInt(dependencySelect.value, 10) : 0;
+  if (isDraftTask) draftTaskId = null; // ce brouillon devient une vraie tâche
 
   var task = tasks.find(function(t) { return t.id === taskId; });
   var wasNotDone = task && task.Status !== 'done';
   var newStatus = document.getElementById('task-status').value;
-  var restrictedReferent = draftTaskId !== taskId && isBusinessReferent();
+  var restrictedReferent = !isDraftTask && isBusinessReferent();
 
   // Un Référent métier ne peut modifier que le statut de la tâche.
   // Les champs de suivi du temps sont ajustés automatiquement lors du changement de statut.
@@ -9022,9 +9112,32 @@ async function updateTask(taskId) {
 
 
   try {
-    await grist.docApi.applyUserActions([
+    var saveActions = [
       ['UpdateRecord', TASKS_TABLE, taskId, record]
-    ]);
+    ];
+
+    if (isDraftTask && selectedDependencyId && canManageTaskDependencies()) {
+      var selectedDependency = tasks.find(function(t) {
+        return Number(t.id) === Number(selectedDependencyId);
+      });
+      var alreadyLinked = dependencies.some(function(d) {
+        return Number(d.Task_Id) === Number(taskId) &&
+          Number(d.Depends_On_Task_Id) === Number(selectedDependencyId);
+      });
+
+      if (selectedDependency && Number(selectedDependencyId) !== Number(taskId) && !alreadyLinked) {
+        saveActions.push([
+          'AddRecord', DEPENDENCIES_TABLE, null,
+          {
+            Task_Id: taskId,
+            Depends_On_Task_Id: selectedDependencyId,
+            Created_At: Math.floor(Date.now() / 1000)
+          }
+        ]);
+      }
+    }
+
+    await grist.docApi.applyUserActions(saveActions);
     showToast(t('taskUpdated'), 'success');
     var logDetails = [];
     var autoChanges = {};
@@ -9269,6 +9382,13 @@ function canCreateTasks() {
 function canDeleteTasks() {
   var role = getCurrentUserRole();
   return role === 'administrateur' || role === 'développeur';
+}
+
+function canManageTaskDependencies() {
+  var role = getCurrentUserRole();
+  return role === 'administrateur' ||
+    role === 'développeur' ||
+    role === 'superviseur';
 }
 
 function canEditTask(task) {
