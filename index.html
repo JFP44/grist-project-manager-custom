@@ -4079,6 +4079,13 @@ body:not(.can-manage-users) .btn-new-task {
   display: none !important;
 }
 
+/* Masquer certaines statistiques aux Référents métier */
+body.business-referent #stats-workload-card,
+body.business-referent #stats-timeline-card,
+body.business-referent #stats-activity-card {
+  display: none !important;
+}
+
 </style>
 </head>
 <body>
