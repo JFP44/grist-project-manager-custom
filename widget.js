@@ -957,7 +957,6 @@ var currentUserEmail = '';
 // ============================================================
 
 var PM_SERVICES = [];
-var PM_STATUTS = [];
 
 
 function buildServiceDemandeurOptions(currentValue) {
@@ -2526,23 +2525,6 @@ async function loadAllData() {
     }
   } catch (e) {
     users = [];
-  }
-
-  // Charger les statuts et leur libellé depuis PM_Statuts
-  try {
-    var statusData = await grist.docApi.fetchTable('PM_Statuts');
-    PM_STATUTS = [];
-    if (statusData && statusData.id) {
-      for (var i = 0; i < statusData.id.length; i++) {
-        PM_STATUTS.push({
-          id: statusData.id[i],
-          name: statusData.Name ? statusData.Name[i] : '',
-          label: statusData.Libellé ? statusData.Libellé[i] : ''
-        });
-      }
-    }
-  } catch (e) {
-    PM_STATUTS = [];
   }
 
   try {
@@ -11782,8 +11764,8 @@ function openProjectModalForEdit(projectId) {
   var proj = projects.find(function(p) { return p.id === projectId; });
   if (!proj) return;
 
-  var statusOptions = PM_STATUTS.length
-    ? PM_STATUTS.map(function(status) { return status.name; })
+  var statusOptions = tags.length
+    ? tags.map(function(tag) { return tag.Name; })
     : [
         'A valider',
         "A l'étude",
@@ -12821,6 +12803,8 @@ if (!isInsideGrist()) {
     await ensureTables();
     await loadSettings();
     await loadAllData();
+
+    document.body.classList.toggle('business-referent', isBusinessReferent());
 
     // DIAGNOSTIC TEMPORAIRE — identification et filtrage
     var diagUser = getCurrentUser();
