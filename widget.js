@@ -12804,7 +12804,7 @@ if (!isInsideGrist()) {
     await loadSettings();
     await loadAllData();
 
-    document.body.classList.toggle('business-referent', isBusinessReferent());
+    document.body.classList.toggle('can-manage-users', canManageUsers());
 
     // DIAGNOSTIC TEMPORAIRE — identification et filtrage
     var diagUser = getCurrentUser();

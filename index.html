@@ -4073,9 +4073,9 @@
     }
     .app-footer a { color: #ef4444; text-decoration: none; }
   
-/* Masquer les créations pour les Référents métier */
-body.business-referent .btn-new-project,
-body.business-referent .btn-new-task {
+/* Masquer les créations aux utilisateurs qui ne gèrent pas l'équipe */
+body:not(.can-manage-users) .btn-new-project,
+body:not(.can-manage-users) .btn-new-task {
   display: none !important;
 }
 
