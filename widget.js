@@ -10850,8 +10850,8 @@ async function saveProject() {
       await loadAllData();
     }
 
-    referentMetier = firstReferent.email;
-    secondReferentMetier = secondReferent.email;
+    referentMetier = firstReferent.name;
+    secondReferentMetier = secondReferent.name;
   } catch (e) {
     showToast(e.message || 'Impossible de préparer les référents métier.', 'error');
     return;
