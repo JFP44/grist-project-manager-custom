@@ -957,6 +957,7 @@ var currentUserEmail = '';
 // ============================================================
 
 var PM_SERVICES = [];
+var currentTeamServiceFilter = '';
 
 
 function buildServiceDemandeurOptions(currentValue) {
@@ -5655,21 +5656,41 @@ function renderTeamView() {
   renderCategoriesList();
 }
 
+function setTeamServiceFilter(value) {
+  currentTeamServiceFilter = value || '';
+  renderUsersList();
+  renderGroupsList();
+}
+
 function renderUsersList() {
   var container = document.getElementById('users-list');
   if (!container) return;
 
-  // Apply role filter so the Équipe tab respects the active role selection
-  var displayedUsers = currentFilterRole
-    ? users.filter(function(u) { return userMatchesRole(u, currentFilterRole); })
-    : users;
+  var displayedUsers = users.filter(function(u) {
+    var roleOk = !currentFilterRole || userMatchesRole(u, currentFilterRole);
+    var serviceOk = !currentTeamServiceFilter ||
+      String(u.Service || '').trim().toLowerCase() === currentTeamServiceFilter.trim().toLowerCase();
+    return roleOk && serviceOk;
+  });
+
+  var html = '<div style="margin-bottom:12px;">';
+  html += '<label style="margin-right:8px;font-weight:600;">Service :</label>';
+  html += '<select onchange="setTeamServiceFilter(this.value)" style="padding:7px 10px;border:1px solid #cbd5e1;border-radius:6px;">';
+  html += '<option value="">Tous les services</option>';
+
+  PM_SERVICES.forEach(function(service) {
+    var selected = service === currentTeamServiceFilter ? ' selected' : '';
+    html += '<option value="' + sanitize(service) + '"' + selected + '>' + sanitize(service) + '</option>';
+  });
+
+  html += '</select></div>';
 
   if (displayedUsers.length === 0) {
-    container.innerHTML = '<div style="text-align:center;padding:30px;color:#94a3b8;">' + t('noUsers') + '</div>';
+    container.innerHTML = html + '<div style="text-align:center;padding:30px;color:#94a3b8;">' + t('noUsers') + '</div>';
     return;
   }
 
-  var html = '<table class="data-table"><thead><tr>';
+  html += '<table class="data-table"><thead><tr>';
   html += '<th>' + t('fieldName') + '</th>';
   html += '<th>' + t('fieldEmail') + '</th>';
   html += '<th>Service</th>';
@@ -5711,6 +5732,54 @@ function renderUsersList() {
   container.innerHTML = html;
 }
 
+function normalizeTeamPerson(value) {
+  return String(value || '').trim().toLocaleLowerCase('fr-FR')
+    .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');
+}
+
+function isUserAssignedToTeamService(u) {
+  if (!currentTeamServiceFilter) return true;
+
+  var userKeys = [
+    normalizeTeamPerson(u.Name),
+    normalizeTeamPerson(u.Email)
+  ].filter(Boolean);
+
+  var serviceProjects = projects.filter(function(project) {
+    return normalizeTeamPerson(project.SERVICE_DEMANDEUR) ===
+      normalizeTeamPerson(currentTeamServiceFilter);
+  });
+
+  return serviceProjects.some(function(project) {
+    var assignedPeople = [
+      project.Referent_Metier,
+      project.Second_Referent_Metier,
+      project.Lead,
+      project.Second_Lead
+    ];
+
+    return assignedPeople.some(function(person) {
+      var personKey = normalizeTeamPerson(person);
+      return personKey && userKeys.indexOf(personKey) !== -1;
+    });
+  });
+}
+
+function getTeamGroupMembers(groupName) {
+  return users.filter(function(u) {
+    if (u.Group_Name !== groupName) return false;
+
+    // Sans filtre : conserver le comportement actuel.
+    if (!currentTeamServiceFilter) return true;
+
+    // Les superviseurs restent visibles quel que soit le service.
+    if (userMatchesRole(u, 'Superviseur')) return true;
+
+    // Les autres membres doivent être affectés à un projet du service.
+    return isUserAssignedToTeamService(u);
+  });
+}
+
 function renderGroupsList() {
   var container = document.getElementById('groups-list');
   if (!container) return;
@@ -5723,8 +5792,9 @@ function renderGroupsList() {
   var html = '';
   for (var i = 0; i < groups.length; i++) {
     var g = groups[i];
-    var memberCount = users.filter(function(u) { return u.Group_Name === g.Name; }).length;
-    var memberNames = users.filter(function(u) { return u.Group_Name === g.Name; }).map(function(u) { return u.Name || u.Email; });
+    var groupMembers = getTeamGroupMembers(g.Name);
+    var memberCount = groupMembers.length;
+    var memberNames = groupMembers.map(function(u) { return u.Name || u.Email; });
 
     html += '<div class="template-card">';
     html += '<div class="template-card-info">';
