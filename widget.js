@@ -2009,7 +2009,8 @@ async function ensureTables() {
           { id: 'Task_Id', type: 'Int' },
           { id: 'Author', type: 'Text' },
           { id: 'Content', type: 'Text' },
-          { id: 'Created_At', type: 'Date' }
+          { id: 'Created_At', type: 'Date' },
+          { id: 'Assigned_Email', type: 'Text' }
         ]]
       ]);
     }
@@ -8445,12 +8446,17 @@ async function addComment(taskId) {
   }
 
   try {
+    var assignedTask = tasks.find(function(t) {
+      return Number(t.id) === Number(taskId);
+    });
+
     await grist.docApi.applyUserActions([
       ['AddRecord', COMMENTS_TABLE, null, {
         Task_Id: taskId,
         Author: currentUserEmail || 'Utilisateur',
         Content: content,
-        Created_At: Math.floor(Date.now() / 1000)
+        Created_At: Math.floor(Date.now() / 1000),
+        Assigned_Email: assignedTask ? String(assignedTask.Assignee || '').trim().toLowerCase() : ''
       }]
     ]);
     textarea.value = '';
