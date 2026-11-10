@@ -7055,8 +7055,10 @@ function updateTaskProjectFields() {
 }
 function openEditTaskModal(taskId, preserveAssignees) {
   console.log('[DIAGNOSTIC ouverture tâche]', taskId);
-  var task = tasks.find(function(t) { return t.id === taskId; });
+  var task = tasks.find(function(t) { return Number(t.id) === Number(taskId); });
+  console.log('[DIAGNOSTIC tâche trouvée]', !!task, task);
   if (!task) return;
+  console.log('[DIAGNOSTIC rôle]', getCurrentUserRole(), getCurrentUser());
   if (draftTaskId === taskId) { if (!canCreateTasks()) return; }
   else if (!canEditTask(task)) { showToast('Vous ne pouvez pas modifier cette tâche.', 'error'); return; }
 
