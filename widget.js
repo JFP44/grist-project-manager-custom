@@ -12905,17 +12905,24 @@ if (!isInsideGrist()) {
       }).length
     });
 
-    // DIAGNOSTIC LECTURE SEULE — compte et tâches de Léa
+    // DIAGNOSTIC LECTURE SEULE — recherche de Léa Blot
     var diagLea = users.filter(function(u) {
-      return String(u.Name || '').toLowerCase().includes('léa blot');
+      var nom = String(u.Name || '').toLowerCase();
+      var email = String(u.Email || '').toLowerCase();
+      return nom.includes('blot') || email.includes('lea.blot');
     });
+
+    console.log('[DIAG LEA — TOTAL UTILISATEURS]', users.length);
     console.log('[DIAG LEA — UTILISATEUR]', diagLea);
+
     if (diagLea.length > 0) {
       var lea = diagLea[0];
+      var nomLea = String(lea.Name || '').toLowerCase();
+      var emailLea = String(lea.Email || '').toLowerCase();
+
       console.log('[DIAG LEA — TÂCHES]', tasks.filter(function(t) {
         var assignee = String(t.Assignee || '').toLowerCase();
-        return assignee.includes(String(lea.Name || '').toLowerCase()) ||
-               assignee.includes(String(lea.Email || '').toLowerCase());
+        return assignee.includes(nomLea) || assignee.includes(emailLea);
       }).map(function(t) {
         return {
           id: t.id,
