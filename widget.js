@@ -5051,7 +5051,7 @@ function renderGanttView() {
           html += '<div style="position:absolute;top:0;bottom:0;left:' + wTodayPct + '%;width:2px;background:#ef4444;z-index:1;pointer-events:none;"></div>';
         }
         if (wGeom && wi === wGeom.idx) {
-          html += '<div class="gantt-bar ' + barClass + '" style="left:' + wGeom.left + 'px;width:' + wGeom.width + 'px;cursor:pointer;' + barCustomStyle + '" title="' + sanitize(task.Title) + '" onclick="if (!isBusinessReferent()) openEditTaskModal(' + task.id + ')">' + sanitize(task.Title) + '</div>';
+          html += '<div class="gantt-bar ' + barClass + '" style="left:' + wGeom.left + 'px;width:' + wGeom.width + 'px;cursor:pointer;' + barCustomStyle + '" title="' + sanitize(task.Title) + '" onclick="openEditTaskModal(' + task.id + ')">' + sanitize(task.Title) + '</div>';
         }
         html += '</td>';
       }
@@ -5070,7 +5070,7 @@ function renderGanttView() {
           for (var wi2 = 0; wi2 < weeks.length; wi2++) {
             html += '<td class="gantt-cell' + (wi2 === wTodayIdx ? ' today-col' : '') + '" style="position:relative;min-width:' + weekColW + 'px;">';
             if (stGeom && wi2 === stGeom.idx) {
-              html += '<div class="gantt-bar gantt-bar-subtask ' + stBarClass + '" style="left:' + stGeom.left + 'px;width:' + stGeom.width + 'px;cursor:pointer;" title="' + sanitize(st.Title) + '" onclick="if (!isBusinessReferent()) openEditTaskModal(' + task.id + ')"></div>';
+              html += '<div class="gantt-bar gantt-bar-subtask ' + stBarClass + '" style="left:' + stGeom.left + 'px;width:' + stGeom.width + 'px;cursor:pointer;" title="' + sanitize(st.Title) + '" onclick="openEditTaskModal(' + task.id + ')"></div>';
             }
             html += '</td>';
           }
@@ -5153,7 +5153,7 @@ function renderGanttView() {
         html += '<td class="gantt-cell" style="position:relative;min-width:' + colWidth + 'px;' + (isCurrent2 ? 'background:#fef2f2;' : '') + '">';
         if (ym === yBarStart) {
           var yBarW = (yBarEnd - yBarStart + 1) * colWidth;
-          html += '<div class="gantt-bar ' + barClass + '" style="left:2px;width:' + yBarW + 'px;cursor:pointer;' + barCustomStyle + '" title="' + sanitize(task.Title) + '" onclick="if (!isBusinessReferent()) openEditTaskModal(' + task.id + ')">' + sanitize(task.Title) + '</div>';
+          html += '<div class="gantt-bar ' + barClass + '" style="left:2px;width:' + yBarW + 'px;cursor:pointer;' + barCustomStyle + '" title="' + sanitize(task.Title) + '" onclick="openEditTaskModal(' + task.id + ')">' + sanitize(task.Title) + '</div>';
         }
         html += '</td>';
       }
@@ -5181,7 +5181,7 @@ function renderGanttView() {
             html += '<td class="gantt-cell" style="position:relative;min-width:' + colWidth + 'px;">';
             if (ym3 === stYStart) {
               var stYW = (stYEnd - stYStart + 1) * colWidth;
-              html += '<div class="gantt-bar gantt-bar-subtask ' + stBarClass + '" style="left:2px;width:' + stYW + 'px;cursor:pointer;" title="' + sanitize(st.Title) + '" onclick="if (!isBusinessReferent()) openEditTaskModal(' + task.id + ')"></div>';
+              html += '<div class="gantt-bar gantt-bar-subtask ' + stBarClass + '" style="left:2px;width:' + stYW + 'px;cursor:pointer;" title="' + sanitize(st.Title) + '" onclick="openEditTaskModal(' + task.id + ')"></div>';
             }
             html += '</td>';
           }
@@ -5251,7 +5251,7 @@ function renderGanttView() {
           html += '<div style="position:absolute;top:0;bottom:0;left:' + todayDayPct + '%;width:2px;background:#ef4444;z-index:1;pointer-events:none;"></div>';
         }
         if (mGeom && m === mGeom.idx) {
-          html += '<div class="gantt-bar ' + barClass + '" style="left:' + mGeom.left + 'px;width:' + mGeom.width + 'px;cursor:pointer;' + barCustomStyle + '" title="' + sanitize(task.Title) + '" onclick="if (!isBusinessReferent()) openEditTaskModal(' + task.id + ')">' + sanitize(task.Title) + '</div>';
+          html += '<div class="gantt-bar ' + barClass + '" style="left:' + mGeom.left + 'px;width:' + mGeom.width + 'px;cursor:pointer;' + barCustomStyle + '" title="' + sanitize(task.Title) + '" onclick="openEditTaskModal(' + task.id + ')">' + sanitize(task.Title) + '</div>';
         }
         html += '</td>';
       }
@@ -5273,7 +5273,7 @@ function renderGanttView() {
               html += '<div style="position:absolute;top:0;bottom:0;left:' + todayDayPct + '%;width:2px;background:#ef4444;z-index:1;pointer-events:none;"></div>';
             }
             if (stGeom && m2 === stGeom.idx) {
-              html += '<div class="gantt-bar gantt-bar-subtask ' + stBarClass + '" style="left:' + stGeom.left + 'px;width:' + stGeom.width + 'px;cursor:pointer;" title="' + sanitize(st.Title) + '" onclick="if (!isBusinessReferent()) openEditTaskModal(' + task.id + ')"></div>';
+              html += '<div class="gantt-bar gantt-bar-subtask ' + stBarClass + '" style="left:' + stGeom.left + 'px;width:' + stGeom.width + 'px;cursor:pointer;" title="' + sanitize(st.Title) + '" onclick="openEditTaskModal(' + task.id + ')"></div>';
             }
             html += '</td>';
           }
@@ -5384,7 +5384,7 @@ function renderGanttView() {
       if (di === barStartIdx) {
         var spanDays = barEndIdx - barStartIdx + 1;
         var widthPx = spanDays * 36;
-        html += '<div class="gantt-bar ' + barClass + '" style="left:2px;width:' + widthPx + 'px;cursor:pointer;' + barCustomStyle + '" title="' + sanitize(task.Title) + '" onclick="if (!isBusinessReferent()) openEditTaskModal(' + task.id + ')">' + sanitize(task.Title) + '</div>';
+        html += '<div class="gantt-bar ' + barClass + '" style="left:2px;width:' + widthPx + 'px;cursor:pointer;' + barCustomStyle + '" title="' + sanitize(task.Title) + '" onclick="openEditTaskModal(' + task.id + ')">' + sanitize(task.Title) + '</div>';
       }
       html += '</td>';
     }
@@ -5418,7 +5418,7 @@ function renderGanttView() {
           if (di2 === stBarStartIdx) {
             var stSpanDays = stBarEndIdx - stBarStartIdx + 1;
             var stWidth = stSpanDays * 36;
-            html += '<div class="gantt-bar gantt-bar-subtask ' + stBarClass + '" style="left:2px;width:' + stWidth + 'px;cursor:pointer;" title="' + sanitize(st.Title) + '" onclick="if (!isBusinessReferent()) openEditTaskModal(' + task.id + ')"></div>';
+            html += '<div class="gantt-bar gantt-bar-subtask ' + stBarClass + '" style="left:2px;width:' + stWidth + 'px;cursor:pointer;" title="' + sanitize(st.Title) + '" onclick="openEditTaskModal(' + task.id + ')"></div>';
           }
           html += '</td>';
         }
@@ -9458,18 +9458,11 @@ function canEditTask(task) {
 }
 
 function projectPersonMatchesCurrentUser(value) {
-  if (!value) return false;
-
   var current = getCurrentUser();
-  if (!current) return false;
+  if (!current || !value) return false;
 
-  var email = String(current.Email || '').trim().toLowerCase();
-  var name = String(current.Name || '').trim().toLowerCase();
-
-  return String(value).split(',').some(function(person) {
-    var target = person.trim().toLowerCase();
-    return target !== '' && (target === email || target === name);
-  });
+  var identSet = personIdentSet(current.Email || current.Name);
+  return assigneeListHas(value, identSet);
 }
 
 function isBusinessReferentOnProject(project) {
