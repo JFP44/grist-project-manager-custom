@@ -7054,6 +7054,7 @@ function updateTaskProjectFields() {
   }
 }
 function openEditTaskModal(taskId, preserveAssignees) {
+  console.log('[DIAGNOSTIC ouverture tâche]', taskId);
   var task = tasks.find(function(t) { return t.id === taskId; });
   if (!task) return;
   if (draftTaskId === taskId) { if (!canCreateTasks()) return; }
