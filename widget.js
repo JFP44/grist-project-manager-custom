@@ -6,7 +6,7 @@ var currentLang = 'fr';
 
 var i18n = {
   fr: {
-    appTitle: 'Gestion de Projet',
+    appTitle: 'Gestion de Formulaires COLIBRIS',
     appSubtitle: 'Organisez et suivez vos tâches avec le tableau Kanban ou la vue tableau',
     notInGrist: 'Ce widget doit être utilisé dans Grist.',
     tabCalendar: 'Calendrier',
@@ -9350,7 +9350,7 @@ async function useTemplate(tplId) {
 // =============================================================================
 
 var WIDGET_ID = 'grist-project-manager';
-var WIDGET_NAME = 'Gestion de Projet';
+var WIDGET_NAME = 'Gestion de Formulaires COLIBRIS';
 var WIDGET_TABS = [
   { id: 'calendar',  label_fr: 'Calendrier',  label_en: 'Calendar' },
   { id: 'kanban',    label_fr: 'Kanban',       label_en: 'Kanban' },
