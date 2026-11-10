@@ -12905,6 +12905,27 @@ if (!isInsideGrist()) {
       }).length
     });
 
+    // DIAGNOSTIC LECTURE SEULE — compte et tâches de Léa
+    var diagLea = users.filter(function(u) {
+      return String(u.Name || '').toLowerCase().includes('léa blot');
+    });
+    console.log('[DIAG LEA — UTILISATEUR]', diagLea);
+    if (diagLea.length > 0) {
+      var lea = diagLea[0];
+      console.log('[DIAG LEA — TÂCHES]', tasks.filter(function(t) {
+        var assignee = String(t.Assignee || '').toLowerCase();
+        return assignee.includes(String(lea.Name || '').toLowerCase()) ||
+               assignee.includes(String(lea.Email || '').toLowerCase());
+      }).map(function(t) {
+        return {
+          id: t.id,
+          titre: t.Title,
+          assignee: t.Assignee,
+          projectId: t.Project_Id
+        };
+      }));
+    }
+
     applyOwnerRestrictions();
     updateNotificationBadge();
     await checkTimeBasedAutomations();
