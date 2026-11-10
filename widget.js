@@ -8440,7 +8440,9 @@ async function addComment(taskId) {
   var savedConsulted = editConsulted.slice();
   var savedInformed = editInformed.slice();
   var scrollPos = getModalScrollTop();
-  await persistTaskFormFields(taskId);   // A1
+  if (!isBusinessReferent()) {
+    await persistTaskFormFields(taskId);   // A1
+  }
 
   try {
     await grist.docApi.applyUserActions([
