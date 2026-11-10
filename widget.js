@@ -9446,15 +9446,29 @@ function canManageTaskDependencies() {
 function canEditTask(task) {
   if (!task) return false;
   var role = getCurrentUserRole();
+
   if (role === 'administrateur' || role === 'développeur' || role === 'superviseur') return true;
   if (role !== 'référent métier') return false;
 
   var taskProject = projects.find(function(p) {
     return Number(p.id) === Number(task.Project_Id);
   });
-  if (!taskProject || !canViewProject(taskProject)) return false;
 
-  return projectPersonMatchesCurrentUser(task.Assignee);
+  var visible = !!taskProject && canViewProject(taskProject);
+  var assigned = projectPersonMatchesCurrentUser(task.Assignee);
+
+  console.log('[DIAGNOSTIC canEditTask]', {
+    role: role,
+    utilisateur: getCurrentUser(),
+    taskId: task.id,
+    assignee: task.Assignee,
+    projectId: task.Project_Id,
+    projetTrouve: !!taskProject,
+    projetVisible: visible,
+    affectationCorrespond: assigned
+  });
+
+  return visible && assigned;
 }
 
 function projectPersonMatchesCurrentUser(value) {
