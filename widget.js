@@ -9456,6 +9456,7 @@ function canManageTaskDependencies() {
 
 function canEditTask(task) {
   if (!task) return false;
+
   var role = getCurrentUserRole();
 
   if (role === 'administrateur' || role === 'développeur' || role === 'superviseur') return true;
@@ -9467,19 +9468,19 @@ function canEditTask(task) {
 
   var visible = !!taskProject && canViewProject(taskProject);
   var assigned = projectPersonMatchesCurrentUser(task.Assignee);
+  var referent = !!taskProject && isBusinessReferentOnProject(taskProject);
 
   console.log('[DIAGNOSTIC canEditTask]', {
     role: role,
     utilisateur: getCurrentUser(),
     taskId: task.id,
     assignee: task.Assignee,
-    projectId: task.Project_Id,
-    projetTrouve: !!taskProject,
     projetVisible: visible,
-    affectationCorrespond: assigned
+    affectationCorrespond: assigned,
+    referentProjet: referent
   });
 
-  return visible && assigned;
+  return visible && assigned && referent;
 }
 
 function projectPersonMatchesCurrentUser(value) {
