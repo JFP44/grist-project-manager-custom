@@ -8453,7 +8453,7 @@ async function addComment(taskId) {
     await grist.docApi.applyUserActions([
       ['AddRecord', COMMENTS_TABLE, null, {
         Task_Id: taskId,
-        Author: currentUserEmail || 'Utilisateur',
+        Author: (getCurrentUser() && getCurrentUser().Name) ? getCurrentUser().Name : 'Utilisateur',
         Content: content,
         Created_At: Math.floor(Date.now() / 1000),
         Assigned_Email: assignedTask ? String(assignedTask.Assignee || '').trim().toLowerCase() : ''
