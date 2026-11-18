@@ -5688,6 +5688,15 @@ function renderUsersList() {
     return roleOk && serviceOk;
   });
 
+  // Tri alphabétique par nom, en ignorant les accents et la casse.
+  displayedUsers.sort(function(a, b) {
+    return String(a.Name || '').localeCompare(
+      String(b.Name || ''),
+      'fr',
+      { sensitivity: 'base' }
+    );
+  });
+
   var html = '<div style="margin-bottom:12px;">';
   html += '<label style="margin-right:8px;font-weight:600;">Service :</label>';
   html += '<select onchange="setTeamServiceFilter(this.value)" style="padding:7px 10px;border:1px solid #cbd5e1;border-radius:6px;">';
