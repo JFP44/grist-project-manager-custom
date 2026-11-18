@@ -2015,6 +2015,20 @@ async function ensureTables() {
       ]);
     }
 
+    // Auteur automatique : nom du compte Grist qui crée le commentaire.
+    try {
+      await grist.docApi.applyUserActions([
+        ['ModifyColumn', COMMENTS_TABLE, 'Author', {
+          isFormula: false,
+          formula: 'user.Name',
+          recalcWhen: 2,
+          recalcDeps: null
+        }]
+      ]);
+    } catch (e) {
+      console.warn('Configuration automatique de Author impossible :', e.message);
+    }
+
     if (existingTables.indexOf(TIME_ENTRIES_TABLE) === -1) {
       await grist.docApi.applyUserActions([
         ['AddTable', TIME_ENTRIES_TABLE, [
@@ -8453,7 +8467,6 @@ async function addComment(taskId) {
     await grist.docApi.applyUserActions([
       ['AddRecord', COMMENTS_TABLE, null, {
         Task_Id: taskId,
-        Author: currentUserEmail || 'Utilisateur',
         Content: content,
         Created_At: Math.floor(Date.now() / 1000),
         Assigned_Email: assignedTask ? String(assignedTask.Assignee || '').trim().toLowerCase() : ''
