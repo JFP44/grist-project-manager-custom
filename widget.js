@@ -12824,63 +12824,33 @@ if (!isInsideGrist()) {
       console.warn('Could not create helper table:', e.message);
     }
 
-    // Step 2: Read current user email using a session-specific helper row
-    var sessionId = 'session-' + Date.now() + '-' + Math.random().toString(36).slice(2);
-    var helperRecordId = null;
-
+    // Step 2: Read current user email via REST API (respects "View As")
     try {
-      if (helperWriteSucceeded === false) {
-        // Create a dedicated row for this session
-        try {
-          await grist.docApi.applyUserActions([
-            ['AddRecord', USER_INFO_TABLE, null, { SessionId: sessionId }]
-          ]);
-          helperWriteSucceeded = true;
-        } catch (writeErr) {
-          console.log('Could not create session row:', writeErr.message);
+      try {
+        var existingData = await grist.docApi.fetchTable(USER_INFO_TABLE);
+        var rowIds = (existingData && existingData.id) ? existingData.id : [];
+        var actions = [];
+        for (var r = 0; r < rowIds.length; r++) {
+          actions.push(['RemoveRecord', USER_INFO_TABLE, rowIds[r]]);
         }
-      } else {
-        await grist.docApi.applyUserActions([
-          ['AddRecord', USER_INFO_TABLE, null, { SessionId: sessionId }]
-        ]);
+        actions.push(['AddRecord', USER_INFO_TABLE, null, {}]);
+        await grist.docApi.applyUserActions(actions);
+        helperWriteSucceeded = true;
+      } catch (writeErr) {
+        console.log('Could not refresh row (read-only?):', writeErr.message);
       }
 
       var tokenInfo = await grist.docApi.getAccessToken({ readOnly: true });
       var tableResp = await fetch(tokenInfo.baseUrl + '/tables/' + USER_INFO_TABLE + '/records?auth=' + tokenInfo.token);
-
       if (tableResp.ok) {
         var tableData = await tableResp.json();
-        var matchingRecord = (tableData.records || []).find(function(record) {
-          return record.fields && record.fields.SessionId === sessionId;
-        });
-
-        if (matchingRecord) {
-          currentUserEmail = matchingRecord.fields.UserEmail || '';
-          helperRecordId = matchingRecord.id;
+        if (tableData.records && tableData.records.length > 0) {
+          currentUserEmail = tableData.records[0].fields.UserEmail || '';
         }
-      }
-
-      if (!currentUserEmail) {
+      } else {
         var userInfoData = await grist.docApi.fetchTable(USER_INFO_TABLE);
-        if (userInfoData && userInfoData.id) {
-          for (var i = 0; i < userInfoData.id.length; i++) {
-            if (userInfoData.SessionId && userInfoData.SessionId[i] === sessionId) {
-              currentUserEmail = userInfoData.UserEmail ? (userInfoData.UserEmail[i] || '') : '';
-              helperRecordId = userInfoData.id[i];
-              break;
-            }
-          }
-        }
-      }
-
-      // Remove only this session's helper row
-      if (helperRecordId) {
-        try {
-          await grist.docApi.applyUserActions([
-            ['RemoveRecord', USER_INFO_TABLE, helperRecordId]
-          ]);
-        } catch (cleanupErr) {
-          console.log('Could not remove own helper row:', cleanupErr.message);
+        if (userInfoData && userInfoData.UserEmail && userInfoData.UserEmail.length > 0) {
+          currentUserEmail = userInfoData.UserEmail[0] || '';
         }
       }
     } catch (e) {
